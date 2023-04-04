@@ -68,18 +68,22 @@ for i, (train_index, test_index) in enumerate(skf.split(meta.index, meta)):
     val_subjects   = node_subjects[val_index]
     test_subjects  = node_subjects[test_index]
 
-    node_features = Network.node_feature_augmentation(G , datModalities , [100,100,100] , 2 , train_index , val_index , test_index)
+    node_features = Network.node_feature_augmentation(G , datModalities , [64,64,64] , 300 , train_index , val_index , test_index)
     nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
 
-    test_metrics , model , generator , gcn = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , 2 , mlb)
+    test_metrics , model , generator , gcn = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , 300 , mlb)
     
     output_test.append(test_metrics)
     output_model.append(model)
     output_generator.append(generator)
     
 accuracy = []
-for acc in output_test :
-    accuracy.append(acc[1])
+with open("/disk/scratch_big/s2180082/test_metrics.txt" , 'w') as f :
+    for acc in output_test :
+        f.write("loss = %2.3f , acc = %2.3f" % (acc[0] , acc[1]))
+        f.write('\n')
+        accuracy.append(acc[1])
+
 
 print("10 Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(np.mean(accuracy)*100 , np.std(accuracy)*100))
 
@@ -88,8 +92,8 @@ best_model = np.where(accuracy == np.max(accuracy))[0][-1]
 cmplt , pred = GNN.gnn_confusion_matrix(output_model[best_model] , output_generator[best_model] , train_subjects , mlb)
 cmplt.plot(  cmap = Darjeeling2_5.mpl_colormap )
 plt.title('Test Accuracy = %2.1f %%' % (np.mean(accuracy)*100))
-#plt.savefig('model_confusion_matrix.png' , dpi = 300)
+plt.savefig('/disk/scratch_big/s2180082/output/model_confusion_matrix.png' , dpi = 300)
 
 tsne_plot = GNN.transform_plot(gcn , output_generator[best_model] , node_subjects , TSNE)
-#tsne_plot.savefig('TSNE.png' , dpi = 300)
+tsne_plot.savefig('/disk/scratch_big/s2180082/output/TSNE.png' , dpi = 300)
 
