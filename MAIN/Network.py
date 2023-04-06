@@ -47,7 +47,6 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , train_in
     Augment Graph with node features extracted using the hidden
     dimension of an Autoencoder for each data modality
     '''
-
     # Get Training data and specify latent dimension for each modality
     TRAIN_DATA = [datModalities[data] for data in datModalities]
 
@@ -59,10 +58,10 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , train_in
     test_subjects_idx  = [G_idx_link.get(key) for key in test_index]
 
     # Train the autoencoder and extract the hidden dimension
-    reduced_df = AE.get_unimodal_encoded_layer(TRAIN_DATA, LATENT_DIM , epochs , train_subjects_idx , test_subjects_idx , val_subjects_idx)
+    reduced_df = AE.train(TRAIN_DATA, LATENT_DIM , epochs , train_subjects_idx , test_subjects_idx , val_subjects_idx)
 
     # Join the train, test and validation splits for each data modality
-    node_features = AE.get_joined_feature_encodings(reduced_df)
+    node_features = AE.combine_embeddings(reduced_df)
 
     # Augment Graph with Node Features
     node_features = node_features.reindex([i[1]['idx'] for i in G.nodes(data=True)])

@@ -54,7 +54,7 @@ class AE(torch.nn.Module):
         
         return encoded , decoded
 
-def get_unimodal_encoded_layer(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , val_subjects) :
+def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , val_subjects) :
     i = 0
     reduced_df = {}
     
@@ -168,7 +168,7 @@ def get_unimodal_encoded_layer(TRAIN_DATA , LATENT_DIM , epochs , train_subjects
         
     return reduced_df
 
-def get_joined_feature_encodings(reduced_df) : 
+def combine_embeddings(reduced_df) : 
     joined_df = {}
     for split in ['train' , 'test' , 'val'] : 
         split_df = pd.concat([reduced_df[data_mod][split] for data_mod in reduced_df.keys()] , axis =1)
@@ -210,3 +210,4 @@ def get_joined_feature_encodings(reduced_df) :
     reduced_val   = reduced_val.add_prefix(feature_prefix)
 
     return pd.concat([reduced_train , reduced_test , reduced_val])'''
+
