@@ -70,7 +70,7 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
     for name, val in zip(model.metrics_names, test_metrics):
         print("\t{}: {:0.4f} \n".format(name, val))
         
-    return test_metrics , model , generator , gcn
+    return test_metrics , model , generator , gcn , history.history
 
 def transform_plot(model , generator , subjects , transform ) : 
 

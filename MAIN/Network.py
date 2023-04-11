@@ -8,7 +8,6 @@ def network_from_csv(NETWORK_PATH , weighted=False) :
     '''
     Generate a networkx network from a as_long_data_frame() object from igraph in R
     '''
-    
     # Open csv as pandas dataframe
     network = pd.read_csv(NETWORK_PATH , index_col=0)
 
@@ -49,7 +48,6 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , train_in
     '''
     # Get Training data and specify latent dimension for each modality
     TRAIN_DATA = [datModalities[data] for data in datModalities]
-
     # Link the patient index names to the node numbers
     G_idx_link = pd.Series(nx.get_node_attributes(G , 'idx'))
 
@@ -58,7 +56,7 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , train_in
     test_subjects_idx  = [G_idx_link.get(key) for key in test_index]
 
     # Train the autoencoder and extract the hidden dimension
-    reduced_df = AE.train(TRAIN_DATA, LATENT_DIM , epochs , train_subjects_idx , test_subjects_idx , val_subjects_idx)
+    reduced_df , ae_losses = AE.train(TRAIN_DATA, LATENT_DIM , epochs , train_subjects_idx , test_subjects_idx , val_subjects_idx)
 
     # Join the train, test and validation splits for each data modality
     node_features = AE.combine_embeddings(reduced_df)
@@ -66,4 +64,4 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , train_in
     # Augment Graph with Node Features
     node_features = node_features.reindex([i[1]['idx'] for i in G.nodes(data=True)])
 
-    return node_features
+    return node_features , ae_losses

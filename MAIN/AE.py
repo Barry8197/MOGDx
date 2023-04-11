@@ -64,6 +64,7 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , va
     '''
     Iterate over each data modality training one autencoder per modality
     '''
+    ae_losses = []
     for data , latent_dim in zip(TRAIN_DATA , LATENT_DIM) :           
         
         '''
@@ -104,9 +105,7 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , va
                         lr = 1e-1,
                         weight_decay = 1e-8)
         
-        outputs = []
         losses = []
-        
         # Move training data to torch tensor on the specified device
         omic = torch.tensor(X_train.to_numpy() , dtype=torch.float , device=device)
         for epoch in range(epochs):
@@ -126,12 +125,9 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , va
 
             # Storing the losses in a list for plotting
             loss = loss.cpu().detach().numpy()
-            losses.append(loss)
-            outputs.append((epochs, decoded_omic))
+            losses.append(float(loss))
             print("loss = %2.3f \t epoch = %i" % (loss , epoch))
 
-        # Defining the Plot Style
-        #plt.style.use('fivethirtyeight')
         plt.xlabel('Iterations')
         plt.ylabel('Loss')
 
@@ -166,7 +162,9 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , va
         del omic , auto_encoder
         torch.cuda.empty_cache()
         
-    return reduced_df
+        ae_losses.append(losses)
+    
+    return reduced_df , ae_losses
 
 def combine_embeddings(reduced_df) : 
     joined_df = {}
