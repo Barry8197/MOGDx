@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn as sk
 
-def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , mlb) :
+def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , gnn_layers , layer_activation , learning_rate , mlb) :
     '''
     Code for training the GNN model
     '''
@@ -23,7 +23,7 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
 
     # two layers of GCN, each with hidden dimension 64
     gcn = sg.layer.GCN(
-        layer_sizes=[ 64 , 64 ], activations=[ "elu" , "elu"  ], generator=generator, dropout=0.5
+        layer_sizes=gnn_layers, activations=layer_activation, generator=generator, dropout=0.5
     )
 
     x_inp, x_out = gcn.in_out_tensors() # create the input and output TensorFlow tensors
@@ -40,7 +40,7 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
     # task
     model = Model(inputs=x_inp, outputs=predictions)
     model.compile(
-        optimizer=optimizers.Adam(learning_rate=0.01),
+        optimizer=optimizers.Adam(learning_rate=learning_rate),
         loss=losses.categorical_crossentropy,
         metrics=["acc"],
     )

@@ -6,6 +6,7 @@ sys.path.insert(0, './MAIN/')
 import Network
 import AE
 import GNN
+import torch
 import networkx as nx
 import matplotlib.pyplot as plt
 from sklearn.model_selection import StratifiedKFold , train_test_split
@@ -48,6 +49,9 @@ def main(args):
     
     if not os.path.exists(args.output) : 
         os.mkdir(args.output)
+        
+    device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
+    print("Using %s device" % device)
 
     datModalities , meta = data_parsing(args.input , args.target , args.index_col)
 
@@ -57,7 +61,7 @@ def main(args):
     node_subjects = meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))].reset_index(drop=True)
     node_subjects.name = args.target
 
-    skf = StratifiedKFold(n_splits=3 , shuffle=True) 
+    skf = StratifiedKFold(n_splits=args.n_splits , shuffle=True) 
 
     print(skf)
 
@@ -78,10 +82,10 @@ def main(args):
         val_subjects   = node_subjects[val_index]
         test_subjects  = node_subjects[test_index]
 
-        node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , train_index , val_index , test_index)
+        node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device)
         nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
 
-        test_metrics , model , generator , gcn , model_history = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , args.epochs , mlb)
+        test_metrics , model , generator , gcn , model_history = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , args.epochs , args.layers , args.layer_activation , args.lr , mlb)
         
         output_metrics.append([ae_losses , model_history])
         output_test.append(test_metrics)
@@ -163,6 +167,12 @@ def construct_parser():
                         help ='Name of column in input data which refers to index.'
                         'Leave blank if none.')
     
+    parser.add_argument('--n-splits' , required=True , type=int, help='Number of K-Fold'
+                        'splits to use')
+    parser.add_argument('--layers' , required=True, nargs="+" , type=int , help ='List of integrs'
+                        'specifying GNN layer sizes')
+    parser.add_argument('--layer-activation', required=True , nargs="+" , type=str , help='List of activation'
+                        'functions for each GNN layer')
     parser.add_argument('-i', '--input', required=True, help='Path to the '
                         'input data for the model to read')
     parser.add_argument('-o', '--output', required=True, help='Path to the '

@@ -41,7 +41,7 @@ def network_from_csv(NETWORK_PATH , weighted=False) :
         
     return G
 
-def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , train_index , val_index , test_index) :
+def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , learning_rate , train_index , val_index , test_index , device) :
     '''
     Augment Graph with node features extracted using the hidden
     dimension of an Autoencoder for each data modality
@@ -56,7 +56,7 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , train_in
     test_subjects_idx  = [G_idx_link.get(key) for key in test_index]
 
     # Train the autoencoder and extract the hidden dimension
-    reduced_df , ae_losses = AE.train(TRAIN_DATA, LATENT_DIM , epochs , train_subjects_idx , test_subjects_idx , val_subjects_idx)
+    reduced_df , ae_losses = AE.train(TRAIN_DATA, LATENT_DIM , epochs , learning_rate , train_subjects_idx , test_subjects_idx , val_subjects_idx , device)
 
     # Join the train, test and validation splits for each data modality
     node_features = AE.combine_embeddings(reduced_df)

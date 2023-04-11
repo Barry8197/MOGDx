@@ -54,12 +54,9 @@ class AE(torch.nn.Module):
         
         return encoded , decoded
 
-def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , val_subjects) :
+def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , test_subjects , val_subjects , device) :
     i = 0
     reduced_df = {}
-    
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu') # Get GPU device name, else use CPU
-    print("Using %s device" % device)
     
     '''
     Iterate over each data modality training one autencoder per modality
@@ -67,13 +64,14 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , va
     ae_losses = []
     for data , latent_dim in zip(TRAIN_DATA , LATENT_DIM) :           
         
-        '''
-        Check GPU memory storage and print available RAM
-        '''
-        t = torch.cuda.get_device_properties(0).total_memory*(1*10**-9)             
-        r = torch.cuda.memory_reserved(0)*(1*10**-9)
-        a = torch.cuda.memory_allocated(0)*(1*10**-9)
-        print("Total = %1.1fGb \t Reserved = %1.1fGb \t Allocated = %1.1fGb" % (t,r,a))
+        if device == 'cuda' :
+            '''
+            Check GPU memory storage and print available RAM
+            '''
+            t = torch.cuda.get_device_properties(0).total_memory*(1*10**-9)             
+            r = torch.cuda.memory_reserved(0)*(1*10**-9)
+            a = torch.cuda.memory_allocated(0)*(1*10**-9)
+            print("Total = %1.1fGb \t Reserved = %1.1fGb \t Allocated = %1.1fGb" % (t,r,a))
         
         print("Training Autoencoder for %s" % (data.name))
         
@@ -102,7 +100,7 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , train_subjects , test_subjects , va
         
         # Using an Adam Optimizer with lr = 0.1
         optimizer = torch.optim.Adam(auto_encoder.parameters(),
-                        lr = 1e-1,
+                        lr = learning_rate,
                         weight_decay = 1e-8)
         
         losses = []
