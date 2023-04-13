@@ -48,7 +48,7 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
 def main(args): 
     
     if not os.path.exists(args.output) : 
-        os.mkdir(args.output)
+        os.makedirs(args.output, exist_ok=True)
         
     device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
     print("Using %s device" % device)
