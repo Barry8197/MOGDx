@@ -105,7 +105,7 @@ def main(args):
             
         for i in range(len(output_metrics)) :
             f.write('\n')
-            f.write("AE Model %i Loss \n" % i)
+            f.write("AE Fold %i Loss \n" % i)
             count = 0
             for modality_loss in output_metrics[i][0] :
                 count += 1
@@ -114,16 +114,16 @@ def main(args):
                 f.write('\n')
             
             f.write('\n')
-            f.write("GNN Model %i Loss \n" % i)
+            f.write("GNN Fold %i Loss \n" % i)
             for metric in output_metrics[i][1] :
                 f.write("%s \n" % metric)
                 f.write("".join(str(output_metrics[i][1][metric])))
                 f.write('\n')
             
         f.write('\n')
-        f.write("10 Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(np.mean(accuracy)*100 , np.std(accuracy)*100))
+        f.write("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
 
-    print("10 Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(np.mean(accuracy)*100 , np.std(accuracy)*100))
+    print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
 
     best_model = np.where(accuracy == np.max(accuracy))[0][-1]
     output_file = args.output + '/' + "best_model.h5"
@@ -150,7 +150,7 @@ def construct_parser():
     #                    '(default: 1000)')
     parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--lr', type=float, default=1.0, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
                         help='Learning rate step gamma (default: 0.7)')
@@ -166,13 +166,13 @@ def construct_parser():
     parser.add_argument('--index-col' , type=str , default='', 
                         help ='Name of column in input data which refers to index.'
                         'Leave blank if none.')
-    
-    parser.add_argument('--n-splits' , required=True , type=int, help='Number of K-Fold'
+    parser.add_argument('--n-splits' , default=10 , type=int, help='Number of K-Fold'
                         'splits to use')
-    parser.add_argument('--layers' , required=True, nargs="+" , type=int , help ='List of integrs'
+    parser.add_argument('--layers' , default=[64 , 64], nargs="+" , type=int , help ='List of integrs'
                         'specifying GNN layer sizes')
-    parser.add_argument('--layer-activation', required=True , nargs="+" , type=str , help='List of activation'
+    parser.add_argument('--layer-activation', default=['elu' , 'elu'] , nargs="+" , type=str , help='List of activation'
                         'functions for each GNN layer')
+
     parser.add_argument('-i', '--input', required=True, help='Path to the '
                         'input data for the model to read')
     parser.add_argument('-o', '--output', required=True, help='Path to the '
