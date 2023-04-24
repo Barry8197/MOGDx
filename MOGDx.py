@@ -1,3 +1,4 @@
+print('Importing Python Modules \n')
 import argparse
 import pandas as pd
 import os
@@ -17,6 +18,7 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from matplotlib.lines import Line2D
 mlb = MultiLabelBinarizer()
+print('Finished Import \n')
 
 def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
     TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'expr' in i.lower()]
@@ -24,6 +26,10 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
         dattmp = pd.read_csv(path , index_col=0)
+        if 'TCGA' in dattmp.columns[0] :
+            pass
+        else :
+            dattmp = dattmp.T
         dattmp.name = path.split('.')[1].split('_')[-1]
         datModalities[dattmp.name] = dattmp
 
@@ -40,6 +46,7 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
             
         meta = pd.concat([meta , meta_tmp[TARGET]])
 
+    print(meta)
     meta = meta[~meta.index.duplicated(keep='first')]
 
     return datModalities , meta
@@ -186,6 +193,7 @@ def construct_parser():
     return parser
 
 if __name__ == '__main__':
+    print("Starting")
     parser = construct_parser()
     args = parser.parse_args()
     main(args)
