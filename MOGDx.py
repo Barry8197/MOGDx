@@ -24,6 +24,10 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
         dattmp = pd.read_csv(path , index_col=0)
+        if 'TCGA' in dattmp.columns[0] :
+            pass
+        else :
+            dattmp = dattmp.T
         dattmp.name = path.split('.')[1].split('_')[-1]
         datModalities[dattmp.name] = dattmp
 

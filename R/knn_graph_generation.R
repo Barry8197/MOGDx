@@ -3,7 +3,8 @@ library(DESeq2)
 library(dplyr)
 
 setwd('~/MOGDx/')
-load('./data/RPPA/RPPA_processed.RData')
+modality <- 'CNV'
+load(paste0('./data/',modality,'/',modality,'_processed.RData'))
 
 make.knn.graph<-function(D,k){
   # calculate euclidean distances between cells
@@ -33,14 +34,14 @@ res <- results(dds)
 
 
 # miRNA -------------------------------------------------------------------
-datExpr <- read_per_million
+datExpr <- log(t(read_per_million))
 
-
-
+dim(datExpr)
+hist(datExpr[,500])
 
 # Graph Generaion ---------------------------------------------------------
-mat <- t(count_mtx[, protein_sites[[1]]]) 
-mat <- mat[head(order(res$padj), 1500), ]
+mat <- t(datExpr[, cnv_sites[[1]]])
+mat <- datExpr[head(order(res$padj), 1500), ]
 mat <- mat - rowMeans(mat)
 corr_mat <- as.matrix(as.dist(cor(mat, method="pearson")))
 heatmap(corr_mat)
@@ -81,13 +82,11 @@ plot(
   g,
   layout=layout.fruchterman.reingold,
   edge.curved=TRUE,
-  vertex.size=vSizes,
-  vertex.label.dist=-0.5,
-  vertex.label.color="black",
+  vertex.size=5,
+  vertex.label = NA,
   asp=FALSE,
-  vertex.label.cex=0.6,
   main="gPD vs. HC Correlation Network")
 
-write.csv(as_long_data_frame(g) , file = './Network/RPPA/graph.csv')
-write.csv(count_mtx , file = './data/RPPA/RPPA_datExpr.csv')
-write.csv(datMeta , file = './data/RPPA/RPPA_datMeta.csv')
+write.csv(as_long_data_frame(g) , file = paste0('./Network/',modality,'/graph.csv'))
+write.csv(datExpr , file = paste0('./data/',modality,'/datExpr_', modality , '.csv'))
+write.csv(datMeta , file = paste0('./data/',modality,'/datMeta_', modality , '.csv'))

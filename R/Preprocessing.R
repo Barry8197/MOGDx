@@ -12,6 +12,7 @@ library(pheatmap)
 library(TCGAbiolinks)
 library(SummarizedExperiment)
 library(dplyr)
+library(MethylPipeR)
 
 setwd('~/MOGDx/') 
 
@@ -19,11 +20,22 @@ setwd('~/MOGDx/')
 # mRNA pre-processing -----------------------------------------------------
 
 # Pull in Count Matrices --------------------------------------------------
-load('~/MOGDx/data/mRNA.rda')
+load('./data/mRNA/mRNA.rda')
 count_mtx <- assay(data)
+colnames(count_mtx) <- substr(colnames(count_mtx) , 1, 12)
+count_mtx <- count_mtx[, !(duplicated(colnames(count_mtx)))]
 
 # Create coldata and condition table --------------------------------------
 coldata <- colData(data)
+datMeta <- as.data.frame(coldata[,c('patient','race' , 'gender' , 'sample_type' , 'paper_BRCA_Subtype_PAM50')])
+datMeta <- datMeta[!(is.na(datMeta$paper_BRCA_Subtype_PAM50)) , ]
+datMeta <- datMeta[!(duplicated(datMeta[ , c('patient' , 'paper_BRCA_Subtype_PAM50')])) , ] 
+rownames(datMeta) <- datMeta$patient
+
+# Get intersection of count and meta
+common_idx <- intersect(colnames(count_mtx) , rownames(datMeta))
+count_mtx <- count_mtx[ , common_idx]
+datMeta <- datMeta[common_idx , ]
 
 # Count Distribution ------------------------------------------------------
 counts = count_mtx %>% melt
@@ -38,11 +50,6 @@ count_distr %>% kable(digits = 2, format.args = list(scientific = FALSE)) %>% ka
 rm(counts, count_distr)
 
 
-# Remove Samples with NA in BRCA type -------------------------------------
-to_keep = !(is.na(coldata$paper_BRCA_Subtype_PAM50))
-coldata <- coldata[to_keep,]
-count_mtx <- count_mtx[,to_keep]
-
 # Remove Genes with low level of expression -------------------------------
 #load('./../gPD_HC/preprocessedData/V08/raw_counts.RData')
 to_keep = rowSums(count_mtx) > 0 #removed 1157 genes
@@ -51,16 +58,13 @@ length(to_keep) - sum(to_keep)
 count_mtx <- count_mtx[to_keep,]
 
 datExpr <- count_mtx
-datMeta <- coldata
 
 #to_keep = apply(datExpr, 1, function(x) 100*mean(x>0)) >= threshold
-to_keep = filterByExpr(datExpr , group = coldata$paper_BRCA_Subtype_PAM50)
+to_keep = filterByExpr(datExpr , group = datMeta$paper_BRCA_Subtype_PAM50)
 print('keeping genes')
 print(sum(to_keep))
 length(to_keep) - sum(to_keep)
 count_mtx = count_mtx[to_keep,]
-
-rm( to_keep , datExpr , datMeta)
 
 
 # Remove Outliers ---------------------------------------------------------
@@ -70,9 +74,9 @@ netsummary = fundamentalNetworkConcepts(absadj)
 ku = netsummary$Connectivity
 z.ku = (ku-mean(ku))/sqrt(var(ku))
 
-plot_data = data.frame('sample'=1:length(z.ku), 'distance'=z.ku, 'Sample_ID'=coldata$sample,
-                       'Subject_ID'=coldata$patient, 'Sex'=coldata$gender, 'Age'=coldata$days_to_birth,
-                       'Diagnosis'=coldata$paper_BRCA_Subtype_PAM50)
+plot_data = data.frame('sample'=1:length(z.ku), 'distance'=z.ku,
+                       'Subject_ID'=datMeta$patient, 'Sex'=datMeta$gender, 
+                       'Diagnosis'=datMeta$paper_BRCA_Subtype_PAM50)
 
 ggplot(plot_data) + geom_point(aes(distance , Subject_ID , color = Diagnosis )  ) +
   theme(axis.title.y=element_blank(), axis.text.y=element_blank(),axis.ticks.y=element_blank())
@@ -81,8 +85,8 @@ to_keep = z.ku > -2
 sum(to_keep)
 length(to_keep) - sum(to_keep)
 
-count_mtx <- count_mtx[,to_keep] #removed 95
-coldata <- coldata[to_keep,]
+count_mtx <- count_mtx[,to_keep] #removed 36
+datMeta <- datMeta[to_keep,]
 
 rm(absadj, netsummary, ku, z.ku, plot_data , to_keep)
 
@@ -98,9 +102,9 @@ rm(plot_data)
 
 # Design Matrix Correlations ----------------------------------------------
 out <- c()
-for (i in c(45,47,27,46,75)) {
+for (i in c(1,2,3,4,5)) {
   row_tmp <- c()
-  for (a in c(45,47,27,46,75)) {
+  for (a in c(1,2,3,4,5)) {
     row_tmp <- rbind(row_tmp , cor(as.numeric(coldata[,i]) , as.numeric(coldata[,a]) , use = 'complete.obs'))
   }
   out <- cbind(out , row_tmp)
@@ -111,7 +115,8 @@ pal <- wes_palette("Zissou1", 100, type = "continuous")
 pheatmap(round(out,2) , cluster_rows = FALSE , cluster_cols = FALSE , display_numbers = round(out , 2) )
 out
 
-dds = DESeqDataSetFromMatrix(countData = count_mtx, colData = coldata , design = ~ paper_BRCA_Subtype_PAM50)
+datMeta$paper_BRCA_Subtype_PAM50 <- as.factor(datMeta$paper_BRCA_Subtype_PAM50)
+dds = DESeqDataSetFromMatrix(countData = count_mtx, colData = datMeta , design = ~ paper_BRCA_Subtype_PAM50)
 
 print('performing DESeq')
 dds = DESeq(dds)
@@ -141,7 +146,7 @@ rm(plot_data)
 
 # Save Expression & Meta data ---------------------------------------------
 datExpr = datExpr_vst
-datMeta = datMeta_vst %>% data.frame
+datMeta = datMeta_vst[,1:5] %>% data.frame
 
 rm(datExpr_vst, datMeta_vst , count_mtx , coldata)
 
@@ -150,11 +155,14 @@ genes_info = DE_info %>% data.frame  %>%
 genes_info$ID <- rownames(genes_info)
 genes_info$ID <- gsub("\\..*","", genes_info$ID)
 
-save(datExpr, datMeta, dds, genes_info, file=paste0('~/MOGDx/data/mRNA_processed.RData'))
+colnames(datMeta)
+save(datExpr, datMeta, dds, genes_info, file=paste0('~/MOGDx/data/mRNA/mRNA_processed.RData'))
 
 
 # miRNA preprocessing -----------------------------------------------------
 load('data/miRNA/miRNA.rda')
+
+# Get Count Matrices
 
 read_count <- data.frame(row.names = data$miRNA_ID)
 read_per_million <- data.frame(row.names = data$miRNA_ID)
@@ -182,12 +190,46 @@ for (i in 2:dim(data)[2]) {
 colnames(read_count) <- colname_read_count
 colnames(read_per_million) <- colname_read_per_million
 
-save(read_count , read_per_million , file=paste0('~/MOGDx/data/miRNA/miRNA_preprocessed.RData'))
+# Going to work with the log transformd read per million
+count_mtx <- log(t(read_per_million))
+
+# Get Meta Data
+load('data/mRNA/mRNA.rda')
+coldata <- colData(data)
+datMeta <- as.data.frame(coldata[,c('patient','race' , 'gender' , 'sample_type' , 'paper_BRCA_Subtype_PAM50')])
+datMeta <- datMeta[!(is.na(datMeta$paper_BRCA_Subtype_PAM50)) , ]
+datMeta <- datMeta[!(duplicated(datMeta[ , c('patient' , 'paper_BRCA_Subtype_PAM50')])) , ] 
+rownames(datMeta) <- datMeta$patient
+
+
+# Get Intersection of ID's
+count_mtx <- count_mtx[!(duplicated(rownames(count_mtx))) , ] 
+common_idx <- intersect(rownames(count_mtx) , rownames(datMeta))
+count_mtx <- count_mtx[common_idx , ]
+datMeta <- datMeta[common_idx , ]
+
+# Perform RTFS to identify columns of use ---------------------------------
+phenotypes <- datMeta[,c('patient' , 'paper_BRCA_Subtype_PAM50' , 'race' , 'gender')]
+colnames(phenotypes)
+
+traits <- c('paper_BRCA_Subtype_PAM50'  )
+
+traitResults <- lapply(traits, function(trait) {
+  cvTrait(count_mtx, phenotypes, trait, nFolds = 10)
+})
+
+miRNA_sites = c()
+for (i in 1:length(traitResults)) {
+  trait_coefs <- coef(traitResults[[i]]$model$model , s = "lambda.min")
+  miRNA_sites[[i]] <- trait_coefs@Dimnames[[1]][which(trait_coefs != 0)]
+  miRNA_sites[[i]] <- miRNA_sites[[i]][2:length(miRNA_sites[[i]])]
+}
+
+datExpr <- count_mtx
+save(miRNA_sites , datExpr , datMeta , file=paste0('~/MOGDx/data/miRNA/miRNA_processed.RData'))
 
 
 # DNAm preprocessing ------------------------------------------------------
-library(MethylPipeR)
-
 
 # Create Meta File --------------------------------------------------------
 load('data//mRNA/mRNA.rda')
@@ -219,7 +261,7 @@ datMeta <- datMeta[common_idx , ]
 phenotypes <- datMeta[,c('patient' , 'paper_BRCA_Subtype_PAM50' , 'race' , 'gender')]
 colnames(phenotypes)
 
-traits <- c('paper_BRCA_Subtype_PAM50' , 'race' )
+traits <- c('paper_BRCA_Subtype_PAM50')
 
 removeTraitNAs <- function(traitDF, otherDFs, trait) {
   rowsToKeep <- !is.na(traitDF[[trait]])
@@ -269,14 +311,11 @@ for (i in 1:length(traitResults)) {
   cpg_sites[[i]] <- cpg_sites[[i]][2:length(cpg_sites[[i]])]
 }
 
-
-save(cpg_sites , count_mtx , datMeta , file = '~/MOGDx/data/DNAm/DNAm_processed.RData')
+datExpr <- count_mtx
+save(cpg_sites , datExpr , datMeta , file = '~/MOGDx/data/DNAm/DNAm_processed.RData')
 
 
 # Protein (RPPA) pre-processing ----------------------------------------------------------
-library(mice)
-library(VIM)
-
 load('data/RPPA/RPPA.rda')
 count_mtx <- t(data[  , 6:ncol(data) ])
 colnames(count_mtx) <- data$peptide_target
@@ -298,27 +337,17 @@ common_idx <- intersect(rownames(count_mtx) , rownames(datMeta))
 count_mtx <- count_mtx[common_idx , ]
 datMeta <- datMeta[common_idx , ]
 
-mice_plot <- aggr(count_mtx, col=c('navyblue','yellow'),
-                  numbers=TRUE, sortVars=TRUE,
-                  labels=names(count_mtx), cex.axis=.7,
-                  gap=5, ylab=c("Missing data","Pattern"))
+count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove columns with more than 50% NA
 
-missing_50 <- colnames(count_mtx[ , mice_plot$missings[,'Count'] > 0.5*ncol(count_mtx)]) #remove proteins with more than 50% missing
-count_mtx <- count_mtx[, -which(colnames(count_mtx) %in% missing_50)]
-
-#count_mtx_colnames <-colnames(count_mtx)
-#colnames(count_mtx) <- NULL
-#count_mtx_imputed <- mice(count_mtx, m=5, maxit = 50, method = 'pmm', seed = 500)
 for(i in 1:ncol(count_mtx)){
   count_mtx[is.na(count_mtx[,i]), i] <- mean(count_mtx[,i], na.rm = TRUE)
 }
 
-#summary(count_mtx_imputed)
 
 phenotypes <- datMeta[,c('patient' , 'paper_BRCA_Subtype_PAM50' , 'race' , 'gender')]
 colnames(phenotypes)
 
-traits <- c('paper_BRCA_Subtype_PAM50' , 'race' )
+traits <- c('paper_BRCA_Subtype_PAM50' )
 
 traitResults <- lapply(traits, function(trait) {
   cvTrait(count_mtx, phenotypes, trait, nFolds = 10)
@@ -332,10 +361,12 @@ for (i in 1:length(traitResults)) {
 }
 
 
-save(protein_sites , count_mtx , datMeta , file = '~/MOGDx/data/RPPA/RPPA_processed.RData')
+datExpr <- count_mtx
+save(protein_sites , datExpr , datMeta , file = '~/MOGDx/data/RPPA/RPPA_processed.RData')
 
 
 # CNV pre-processing ------------------------------------------------------
+# Read in Count Matrix
 load('data/CNV/CNV.rda')
 
 count_mtx <- t(assay(data))
@@ -344,5 +375,45 @@ for (name in strsplit(rownames(count_mtx) , ',')) {
   rownames_mtx <- c(rownames_mtx , substr(name[1] ,1, 12))
 }
 rownames(count_mtx) <- rownames_mtx
-count_mtx <- count_mtx[,colSums(is.na(count_mtx))<nrow(count_mtx)]
+count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove columns with more than 50% NA
+
+# Read in Meta Data
+load('data/mRNA/mRNA.rda')
+coldata <- colData(data)
+datMeta <- as.data.frame(coldata[,c('patient','race' , 'gender' , 'sample_type' , 'paper_BRCA_Subtype_PAM50')])
+datMeta <- datMeta[!(is.na(datMeta$paper_BRCA_Subtype_PAM50)) , ]
+datMeta <- datMeta[!(duplicated(datMeta[ , c('patient' , 'paper_BRCA_Subtype_PAM50')])) , ] 
+rownames(datMeta) <- datMeta$patient
+
+#Intersect to common IDs
+count_mtx <- count_mtx[!(duplicated(rownames(count_mtx))) , ] 
+common_idx <- intersect(rownames(count_mtx) , rownames(datMeta))
+count_mtx <- count_mtx[common_idx , ]
+datMeta <- datMeta[common_idx , ]
+
+# Replace NA's with 0's 
+count_mtx[is.na(count_mtx)] <- 0 
+
+# Perform log transform on count matrix to give normal distribution resemblance
+count_mtx <- log(count_mtx)
+
+# Perform RTFS to identify columns of use ---------------------------------
+phenotypes <- datMeta[,c('patient' , 'paper_BRCA_Subtype_PAM50' , 'race' , 'gender')]
+colnames(phenotypes)
+
+traits <- c('paper_BRCA_Subtype_PAM50'  )
+
+traitResults <- lapply(traits, function(trait) {
+  cvTrait(count_mtx, phenotypes, trait, nFolds = 10)
+})
+
+cnv_sites = c()
+for (i in 1:length(traitResults)) {
+  trait_coefs <- coef(traitResults[[i]]$model$model , s = "lambda.min")
+  cnv_sites[[i]] <- trait_coefs@Dimnames[[1]][which(trait_coefs != 0)]
+  cnv_sites[[i]] <- cnv_sites[[i]][2:length(cnv_sites[[i]])]
+}
+
+datExpr <- count_mtx
+save(cnv_sites , datExpr , datMeta , file = '~/MOGDx/data/CNV/CNV_processed.RData')
 
