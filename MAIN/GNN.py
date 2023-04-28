@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn as sk
 
-def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , gnn_layers , layer_activation , learning_rate , mlb) :
+def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , gnn_layers , layer_activation , learning_rate , mlb , split_val) :
     '''
     Code for training the GNN model
     '''
@@ -47,20 +47,36 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
 
     print(model.summary())
 
-    train_gen = generator.flow(train_subjects.index, train_targets)
-    val_gen = generator.flow(val_subjects.index, val_targets)
-    test_gen = generator.flow(test_subjects.index, test_targets)
+    if split_val == True :
+        train_gen = generator.flow(train_subjects.index, train_targets)
+        val_gen = generator.flow(val_subjects.index, val_targets)
+        test_gen = generator.flow(test_subjects.index, test_targets)
 
-    #from tensorflow.keras.callbacks import EarlyStopping
-    #es_callback = EarlyStopping(monitor="val_acc", patience=100, restore_best_weights=True)
+        #from tensorflow.keras.callbacks import EarlyStopping
+        #es_callback = EarlyStopping(monitor="val_acc", patience=100, restore_best_weights=True)
 
-    history = model.fit(
-        train_gen,
-        epochs=epochs,
-        validation_data=val_gen,
-        verbose=2,
-        shuffle=False,  # this should be False, since shuffling data means shuffling the whole graph
-    )
+        history = model.fit(
+            train_gen,
+            epochs=epochs,
+            validation_data=val_gen,
+            verbose=2,
+            shuffle=False,  # this should be False, since shuffling data means shuffling the whole graph
+        )
+    else :
+        
+        train_gen = generator.flow(list(train_subjects.index) + list(val_subjects.index), np.append(train_targets , val_targets , axis = 0))
+        test_gen = generator.flow(test_subjects.index, test_targets)
+
+        #from tensorflow.keras.callbacks import EarlyStopping
+        #es_callback = EarlyStopping(monitor="val_acc", patience=100, restore_best_weights=True)
+
+        history = model.fit(
+            train_gen,
+            epochs=epochs,
+            verbose=2,
+            shuffle=False,  # this should be False, since shuffling data means shuffling the whole graph
+        )
+
 
     sg.utils.plot_history(history)
     plt.show()

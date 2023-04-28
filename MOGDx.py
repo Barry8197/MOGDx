@@ -1,4 +1,3 @@
-print('Importing Python Modules \n')
 import argparse
 import pandas as pd
 import os
@@ -18,8 +17,8 @@ from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from matplotlib.lines import Line2D
 mlb = MultiLabelBinarizer()
-print('Finished Import \n')
 
+print("Finished Library Import \n")
 def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
     TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'expr' in i.lower()]
 
@@ -30,7 +29,7 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
             pass
         else :
             dattmp = dattmp.T
-        dattmp.name = path.split('.')[1].split('_')[-1]
+        dattmp.name = path.split('.')[1].split('_')[-1] 
         datModalities[dattmp.name] = dattmp
 
     META_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'meta' in i.lower()]
@@ -46,7 +45,6 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
             
         meta = pd.concat([meta , meta_tmp[TARGET]])
 
-    print(meta)
     meta = meta[~meta.index.duplicated(keep='first')]
 
     return datModalities , meta
@@ -89,10 +87,10 @@ def main(args):
         val_subjects   = node_subjects[val_index]
         test_subjects  = node_subjects[test_index]
 
-        node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device)
+        node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
         nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
 
-        test_metrics , model , generator , gcn , model_history = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , args.epochs , args.layers , args.layer_activation , args.lr , mlb)
+        test_metrics , model , generator , gcn , model_history = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , args.epochs , args.layers , args.layer_activation , args.lr , mlb , args.split_val)
         
         output_metrics.append([ae_losses , model_history])
         output_test.append(test_metrics)
@@ -136,7 +134,7 @@ def main(args):
     output_file = args.output + '/' + "best_model.h5"
     output_model[best_model].save(output_file)
 
-    if args.output_plots : 
+    if args.no_output_plots : 
         cmplt , pred = GNN.gnn_confusion_matrix(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
         cmplt.plot(  cmap = Darjeeling2_5.mpl_colormap )
         plt.title('Test Accuracy = %2.1f %%' % (np.mean(accuracy)*100))
@@ -168,8 +166,10 @@ def construct_parser():
     #parser.add_argument('--log-interval', type=int, default=10, metavar='N',
     #                    help='how many batches to wait before logging '
     #                    'training status')
-    parser.add_argument('--output-plots', action='store_true' , default=True,
+    parser.add_argument('--no-output-plots', action='store_false' , default=True,
                         help='Disables Confusion Matrix and TSNE plots')
+    parser.add_argument('--split-val', action='store_false' , default=True,
+                        help='Disable validation split on AE and GNN')
     parser.add_argument('--index-col' , type=str , default='', 
                         help ='Name of column in input data which refers to index.'
                         'Leave blank if none.')
@@ -193,7 +193,6 @@ def construct_parser():
     return parser
 
 if __name__ == '__main__':
-    print("Starting")
     parser = construct_parser()
     args = parser.parse_args()
     main(args)
