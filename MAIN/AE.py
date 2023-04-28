@@ -54,7 +54,7 @@ class AE(torch.nn.Module):
         
         return encoded , decoded
 
-def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , test_subjects , val_subjects , device) :
+def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , test_subjects , val_subjects , device , split_val) :
     i = 0
     reduced_df = {}
     
@@ -104,8 +104,12 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
                         weight_decay = 1e-8)
         
         losses = []
+        if split_val == True : 
+            AE_train = X_train
+        else : 
+            AE_train = pd.concat([X_train , X_val])
         # Move training data to torch tensor on the specified device
-        omic = torch.tensor(X_train.to_numpy() , dtype=torch.float , device=device)
+        omic = torch.tensor(AE_train.to_numpy() , dtype=torch.float , device=device)
         for epoch in range(epochs):
 
             # Output of Autoencoder
@@ -140,7 +144,7 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
         Omic_X_test  = reduced_df['data_modality_X']['test']
         Omic_X_val   = reduced_df['data_modality_X']['val']
         '''
-        reduced_train = pd.DataFrame(auto_encoder.forward(omic)[0].cpu().detach().numpy() , index=train_idx_filt)
+        reduced_train = pd.DataFrame(auto_encoder.forward(torch.tensor(X_train.to_numpy() , dtype=torch.float , device=device))[0].cpu().detach().numpy() , index=train_idx_filt)
         reduced_test  = pd.DataFrame(auto_encoder.forward(torch.tensor(X_test.to_numpy() , dtype=torch.float , device=device))[0].cpu().detach().numpy() , index=test_idx_filt)
         reduced_val   = pd.DataFrame(auto_encoder.forward(torch.tensor(X_val.to_numpy() , dtype=torch.float , device=device))[0].cpu().detach().numpy() , index=val_idx_filt)
         
