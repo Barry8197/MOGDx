@@ -3,9 +3,10 @@ library(DESeq2)
 library(dplyr)
 
 setwd('~/MOGDx/')
-modality <- 'CNV'
+modality <- 'RPPA'
 load(paste0('./data/',modality,'/',modality,'_processed.RData'))
 
+length(protein_sites[[1]])
 make.knn.graph<-function(D,k){
   # calculate euclidean distances between cells
   dist<-as.matrix(dist(D))
@@ -29,7 +30,7 @@ make.knn.graph<-function(D,k){
 
 
 # mRNA  -------------------------------------------------------------------
-vsd <- vst(dds)
+vsd <- vst(dds , nsub = 349)
 res <- results(dds)
 
 
@@ -40,8 +41,8 @@ dim(datExpr)
 hist(datExpr[,500])
 
 # Graph Generaion ---------------------------------------------------------
-mat <- t(datExpr[, cnv_sites[[1]]])
-mat <- datExpr[head(order(res$padj), 1500), ]
+mat <- t(datExpr[, cpg_sites[[1]]])
+mat <- datExpr[head(order(res$padj), 200), ]
 mat <- mat - rowMeans(mat)
 corr_mat <- as.matrix(as.dist(cor(mat, method="pearson")))
 heatmap(corr_mat)

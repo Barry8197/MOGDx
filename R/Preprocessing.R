@@ -159,7 +159,14 @@ colnames(datMeta)
 save(datExpr, datMeta, dds, genes_info, file=paste0('~/MOGDx/data/mRNA/mRNA_processed.RData'))
 
 
+
+# -------------------------------------------------------------------------
+
 # miRNA preprocessing -----------------------------------------------------
+
+# -------------------------------------------------------------------------
+
+
 load('data/miRNA/miRNA.rda')
 
 # Get Count Matrices
@@ -190,8 +197,8 @@ for (i in 2:dim(data)[2]) {
 colnames(read_count) <- colname_read_count
 colnames(read_per_million) <- colname_read_per_million
 
-# Going to work with the log transformd read per million
-count_mtx <- log(t(read_per_million))
+## Going to work with the log transformd read per million
+#count_mtx <- log(t(read_per_million))
 
 # Get Meta Data
 load('data/mRNA/mRNA.rda')
@@ -203,33 +210,112 @@ rownames(datMeta) <- datMeta$patient
 
 
 # Get Intersection of ID's
+count_mtx <- t(read_count)
 count_mtx <- count_mtx[!(duplicated(rownames(count_mtx))) , ] 
 common_idx <- intersect(rownames(count_mtx) , rownames(datMeta))
 count_mtx <- count_mtx[common_idx , ]
 datMeta <- datMeta[common_idx , ]
 
-# Perform RTFS to identify columns of use ---------------------------------
-phenotypes <- datMeta[,c('patient' , 'paper_BRCA_Subtype_PAM50' , 'race' , 'gender')]
-colnames(phenotypes)
 
-traits <- c('paper_BRCA_Subtype_PAM50'  )
+# Perform DESeq -----------------------------------------------------------
+count_mtx = t(count_mtx)
+to_keep = rowSums(count_mtx) > 0 #removed 1157 genes
+length(to_keep) - sum(to_keep)
 
-traitResults <- lapply(traits, function(trait) {
-  cvTrait(count_mtx, phenotypes, trait, nFolds = 10)
-})
-
-miRNA_sites = c()
-for (i in 1:length(traitResults)) {
-  trait_coefs <- coef(traitResults[[i]]$model$model , s = "lambda.min")
-  miRNA_sites[[i]] <- trait_coefs@Dimnames[[1]][which(trait_coefs != 0)]
-  miRNA_sites[[i]] <- miRNA_sites[[i]][2:length(miRNA_sites[[i]])]
-}
+count_mtx <- count_mtx[to_keep,]
 
 datExpr <- count_mtx
-save(miRNA_sites , datExpr , datMeta , file=paste0('~/MOGDx/data/miRNA/miRNA_processed.RData'))
+
+#to_keep = apply(datExpr, 1, function(x) 100*mean(x>0)) >= threshold
+to_keep = filterByExpr(datExpr , group = as.factor(datMeta$paper_BRCA_Subtype_PAM50))
+print('keeping genes')
+print(sum(to_keep))
+length(to_keep) - sum(to_keep)
+count_mtx = count_mtx[to_keep,]
 
 
+# Remove Outliers ---------------------------------------------------------
+print('removing outliers')
+absadj = count_mtx %>% bicor %>% abs
+netsummary = fundamentalNetworkConcepts(absadj)
+ku = netsummary$Connectivity
+z.ku = (ku-mean(ku))/sqrt(var(ku))
+
+plot_data = data.frame('sample'=1:length(z.ku), 'distance'=z.ku,
+                       'Subject_ID'=datMeta$patient, 'Sex'=datMeta$gender, 
+                       'Diagnosis'=datMeta$paper_BRCA_Subtype_PAM50)
+
+ggplot(plot_data) + geom_point(aes(distance , Subject_ID , color = Diagnosis )  ) +
+  theme(axis.title.y=element_blank(), axis.text.y=element_blank(),axis.ticks.y=element_blank())
+
+to_keep = z.ku > -2
+sum(to_keep)
+length(to_keep) - sum(to_keep)
+
+count_mtx <- count_mtx[,to_keep] #removed 43
+datMeta <- datMeta[to_keep,]
+
+rm(absadj, netsummary, ku, z.ku, plot_data , to_keep)
+
+
+# Normalisation Using DESeq -----------------------------------------------
+plot_data = data.frame('ID'=rownames(count_mtx), 'Mean'=rowMeans(count_mtx), 'SD'=apply(count_mtx,1,sd))
+
+plot_data %>% ggplot(aes(Mean, SD)) + geom_point(color='#0099cc', alpha=0.1) + geom_abline(color='black') +
+  scale_x_log10() + scale_y_log10() + theme_minimal() + ggtitle('gPD vs. HC V08 gene counts post low expression filtering') + theme(plot.title = element_text(hjust = 0.5)) 
+
+rm(plot_data)
+
+
+# Design Matrix Correlations ----------------------------------------------
+datMeta$paper_BRCA_Subtype_PAM50 <- as.factor(datMeta$paper_BRCA_Subtype_PAM50)
+dds = DESeqDataSetFromMatrix(countData = count_mtx, colData = datMeta , design = ~ paper_BRCA_Subtype_PAM50)
+
+print('performing DESeq')
+dds = DESeq(dds)
+
+# DEA Plots ---------------------------------------------------------------
+DE_info = results(dds)
+DESeq2::plotMA(DE_info, main= 'Original LFC values')
+
+rm(DE_info)
+# VST Transformation of Data ----------------------------------------------
+vsd = vst(dds , nsub = 349)
+
+datExpr_vst = assay(vsd)
+datMeta_vst = colData(vsd)
+
+rm(vsd)
+
+meanSdPlot(datExpr_vst, plot=FALSE)$gg + theme_minimal() + ylim(c(0,2))
+
+plot_data = data.frame('ID'=rownames(datExpr_vst), 'Mean'=rowMeans(datExpr_vst), 'SD'=apply(datExpr_vst,1,sd))
+
+plot_data %>% ggplot(aes(Mean, SD)) + geom_point(color='#0099cc', alpha=0.2) + geom_smooth(color = 'gray') +
+  scale_x_log10() + scale_y_log10() + theme_minimal()
+
+rm(plot_data)
+
+
+# Save Expression & Meta data ---------------------------------------------
+datExpr = datExpr_vst
+datMeta = datMeta_vst[,1:5] %>% data.frame
+
+rm(datExpr_vst, datMeta_vst , count_mtx , coldata)
+
+genes_info = DE_info %>% data.frame  %>% 
+  mutate(significant=padj<0.05 & !is.na(padj) )
+genes_info$ID <- rownames(genes_info)
+genes_info$ID <- gsub("\\..*","", genes_info$ID)
+
+colnames(datMeta)
+save(datExpr, datMeta, dds, genes_info, file=paste0('~/MOGDx/data/miRNA/miRNA_processed.RData'))
+
+
+# -------------------------------------------------------------------------
 # DNAm preprocessing ------------------------------------------------------
+# -------------------------------------------------------------------------
+
 
 # Create Meta File --------------------------------------------------------
 load('data//mRNA/mRNA.rda')
