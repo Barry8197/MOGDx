@@ -3,7 +3,15 @@
 Multi-omic Graph Diagnosis (MOGDx) is a tool for the integration of omic data and classification of heterogeneous diseases. MOGDx exploits a patient similarity network framework to integrate omic data using Similarity Network Fusion (SNF) [^fn1]. One autoencoder per omic modality is trained and the latent embeddings from each autoencoder are concatenated. These reduced vectors are used as node features in the integrated network. Classification is performed on the fused network using the Graph Convolutional Network (GCN) deep learning algorithm [^fn2]. GCN is a novel paradigm for learning from both network structure and node features. Heterogeneity in diseases confounds clinical trials, treatments, genetic association and more. Accurate stratification of these diseases is therefore critical to optimize treatment strategies for patients with heterogeneous diseases. Previous research has shown that accurate classification of heterogenous diseases has been achieved by integrating and classifying multi-omic data [^fn3][^fn4][^fn5]. MOGDx improves upon this research. The advantages of MOGDx is that it can handle both a variable number of modalities and missing patient data in one or more modalities. Performance of MOGDx was benchmarked on the BRCA TCGA dataset with competitive performance compared to its counterparts. In summary, MOGDx combines patient similarity network integration with graph neural network learning for accurate disease classification. 
 
 ## Workflow
+### Full pipeline overview
 ![Code Overview](./workflow_diagrams/code_flowchart.png?raw=true)
+
+### Pre-preocessing and Graph Generation
+![R preprocess](./workflow_diagrams/pre-processing_modalities_inkscape.png?raw=true)
+
+### AE, GNN and Heterogenous Disease Classification
+![Python](./workflow_diagrams/python_inkscape.png?raw=true)
+
 ## Installation
 
 ## Requiremnets
