@@ -145,7 +145,13 @@ make.knn.graph<-function(D,k){
 }
 
 expr.to.graph<-function(datExpr , datMeta , trait , top_genes , modality){
-  mat <- datExpr[top_genes, ]
+  
+  if (modality %in% c('mRNA' , 'miRNA')) {
+    mat <- datExpr[top_genes, ]
+  } else {
+    mat <- t(datExpr[ , top_genes[[trait]]])
+  }
+  
   mat <- mat - rowMeans(mat)
   corr_mat <- as.matrix(as.dist(cor(mat, method="pearson")))
   heatmap(corr_mat)
