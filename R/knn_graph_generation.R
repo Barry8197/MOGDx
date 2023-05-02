@@ -3,7 +3,7 @@ source('~/MOGDx/R/preprocess_functions.R')
 setwd('~/MOGDx/')
 
 trait = 'paper_BRCA_Subtype_PAM50'
-for (modality in c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV')) {
+for (modality in c( 'DNAm' , 'RPPA' , 'CNV')) {
   
   print(modality)
   load(paste0('./data/',modality,'/',modality,'_processed.RData'))
@@ -11,7 +11,7 @@ for (modality in c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV')) {
   if (modality %in% c('miRNA' , 'mRNA')) {
     g <- expr.to.graph(datExpr , datMeta , trait , top_genes , modality)
   } else if (modality == 'DNAm') {
-    g <- expr.to.graph(datExpr , datMeta , trait , cog_sites , modality)
+    g <- expr.to.graph(datExpr , datMeta , trait , cpg_sites , modality)
   } else if (modality == 'CNV') {
     g <- expr.to.graph(datExpr , datMeta , trait , cnv_sites , modality)
   } else if (modality == 'RPPA') { 
