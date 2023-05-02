@@ -2,6 +2,9 @@ library(SNFtool)
 library(ANF)
 library(igraph)
 library(data.table)
+source('~/MOGDx/R/preprocess_functions.R')
+
+setwd('~/MOGDx/')
 
 datMeta <- t(data.frame( row.names = c('patient' ,  'race' , 'gender' , 'sample_type paper_BRCA_Subtype_PAM50')))
 for (mod in c('CNV' , 'RPPA' , 'mRNA' , 'miRNA' , 'DNAm')) {
@@ -10,10 +13,6 @@ for (mod in c('CNV' , 'RPPA' , 'mRNA' , 'miRNA' , 'DNAm')) {
   
 }
 datMeta <- datMeta[!(duplicated(datMeta)),]
-# This pulls in all my networks from the directory. Note - while the example uses two features and then
-# calculates its similarity (affinity) matrix, I do this in another script to construct a patient similarity 
-# network. My affinity matrix is made in the next for loop. My guess is that this loop wont be useful and 
-# you can ignore.
 
 all_idx <- c()
 g_list <- list()
@@ -47,50 +46,13 @@ for (graph_names in names(g_list)) {
 
 ## First, set all the parameters:
 K = 20;		# number of neighbors, usually (10~30)
-#alpha = 0.5;  	# hyperparameter, usually (0.3~0.8)
-T = 3; 	# Number of Iterations, usually (10~20)
+T = 10; 	# Number of Iterations, usually (10~20)
 
 #change this to similarity matrix
 W = SNF(adjacency_graphs, K , T)
 W <- W - diag(0.5 , dim(W)[1]) 
 
-# This constructs a network using the SNF matrix W as weights. Youll see with the weights are all very low
-# so im currently working to understand these better. However, as per SNF_ex.R, performing clustering on W
-# seems to work v nicely.
-g <- graph.adjacency(
-  W,
-  mode="undirected",
-  weighted=TRUE,
-  diag=FALSE
-)
-
-V(g)$class <- datMeta[all_idx,]$paper_BRCA_Subtype_PAM50
-
-g <- simplify(g, remove.multiple=TRUE, remove.loops=TRUE)
-
-# Remove edges below absolute Pearson correlation 0.8
-threshold <- quantile(W , 0.99)
-g <- delete_edges(g, E(g)[which(E(g)$weight<threshold)])
-
-# Remove any vertices remaining that have no edges
-g <- delete.vertices(g, degree(g)==0)
-
-# Change shape of graph vertices
-V(g)$shape <- "sphere"
-
-# Change colour of graph vertices
-V(g)$color <- as.numeric(as.factor(V(g)$class))
-
-# Change colour of vertex frames
-V(g)$vertex.frame.color <- "white"
-
-# Plot the tree object
-plot(
-  g,
-  layout=layout.fruchterman.reingold,
-  vertex.size=5,
-  vertex.label = NA,
-  main="BL Correlation Network")
+g <- snf.to.graph(W , datMeta , 'paper_BRCA_Subtype_PAM50' , all_idx)
 
 write.csv(as_long_data_frame(g) , file = './Network/SNF/graph.csv')
 
