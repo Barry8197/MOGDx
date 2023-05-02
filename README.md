@@ -19,10 +19,10 @@ Multi-omic Graph Diagnosis (MOGDx) is a tool for the integration of omic data an
 ## Contact
 Barry Ryan 
 
-PhD Candidate Biomedical AI, University of Edinburgh
+PhD Candidate Biomedical AI, University of Edinburgh \
 School of Informatics, 10 Crichton Street
 
-Email: barry.ryan@ed.ac.uk
+Email: barry.ryan@ed.ac.uk \
 LinkedIn: https://www.linkedin.com/in/barry-ryan/
 
 ## Citations
