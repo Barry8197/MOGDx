@@ -77,7 +77,7 @@ def main(args):
 
     mlb.fit_transform(meta.values.reshape(-1,1))
 
-    for i, (train_index, test_index) in enumerate(skf.split(meta.index, meta)):
+    for i, (train_index, test_index) in enumerate(skf.split(node_subjects.index, node_subjects)):
         
         train_index, val_index = train_test_split(
         train_index, train_size=.85, test_size=None, stratify=node_subjects[train_index]
