@@ -197,7 +197,7 @@ snf.to.graph <- function(W , datMeta , trait , idx) {
   g <- simplify(g, remove.multiple=TRUE, remove.loops=TRUE)
   
   # Remove edges below absolute Pearson correlation 0.8
-  threshold <- quantile(W , 0.99)
+  threshold <- quantile(W , 0.975)
   g <- delete_edges(g, E(g)[which(E(g)$weight<threshold)])
   
   # Remove any vertices remaining that have no edges

@@ -232,7 +232,7 @@ datMeta <- datMeta[common_idx , ]
 count_mtx[is.na(count_mtx)] <- 0 
 
 # Perform log transform on count matrix to give normal distribution resemblance
-count_mtx <- log(count_mtx)
+count_mtx_log <- log(count_mtx)
 
 # Run glmnet R2 regression to get CNV's of interest
 phenotypes <- datMeta[,c('patient' , 'paper_BRCA_Subtype_PAM50' , 'race' , 'gender')]
@@ -241,7 +241,7 @@ colnames(phenotypes)
 traits <- c('paper_BRCA_Subtype_PAM50'  )
 
 traitResults <- lapply(traits, function(trait) {
-  cvTrait(count_mtx, phenotypes, trait, nFolds = 10)
+  cvTrait(count_mtx_log, phenotypes, trait, nFolds = 10)
 })
 
 cnv_sites = c()
@@ -250,6 +250,8 @@ for (i in 1:length(traitResults)) {
   cnv_sites[[i]] <- trait_coefs@Dimnames[[1]][which(trait_coefs != 0)]
   cnv_sites[[i]] <- cnv_sites[[i]][2:length(cnv_sites[[i]])]
 }
+
+rm(count_mtx_log)
 
 # Save CNV's and expression
 datExpr <- count_mtx
