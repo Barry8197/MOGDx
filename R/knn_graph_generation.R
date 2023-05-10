@@ -3,7 +3,7 @@ source('~/MOGDx/R/preprocess_functions.R')
 setwd('~/MOGDx/')
 
 trait = 'paper_BRCA_Subtype_PAM50'
-for (modality in c( 'DNAm' , 'RPPA' , 'CNV')) {
+for (modality in c( 'mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV')) {
   
   print(modality)
   load(paste0('./data/',modality,'/',modality,'_processed.RData'))
@@ -13,7 +13,7 @@ for (modality in c( 'DNAm' , 'RPPA' , 'CNV')) {
   } else if (modality == 'DNAm') {
     g <- expr.to.graph(datExpr , datMeta , trait , cpg_sites , modality)
   } else if (modality == 'CNV') {
-    g <- expr.to.graph(datExpr , datMeta , trait , cnv_sites , modality)
+    g <- expr.to.graph(log(datExpr) , datMeta , trait , cnv_sites , modality)
   } else if (modality == 'RPPA') { 
     g <- expr.to.graph(datExpr , datMeta , trait , protein_sites , modality)
   }
@@ -21,4 +21,6 @@ for (modality in c( 'DNAm' , 'RPPA' , 'CNV')) {
   write.csv(g, file = paste0('./Network/',modality,'/graph.csv'))
   write.csv(datExpr , file = paste0('./data/',modality,'/datExpr_', modality , '.csv'))
   write.csv(datMeta , file = paste0('./data/',modality,'/datMeta_', modality , '.csv'))
+  
 }
+

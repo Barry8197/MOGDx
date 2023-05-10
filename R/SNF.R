@@ -6,11 +6,11 @@ source('~/MOGDx/R/preprocess_functions.R')
 
 setwd('~/MOGDx/')
 
-datMeta <- t(data.frame( row.names = c('patient' ,  'race' , 'gender' , 'sample_type paper_BRCA_Subtype_PAM50')))
+colnames <- c('patient' ,  'race' , 'gender' , 'sample_type' , 'paper_BRCA_Subtype_PAM50')
+datMeta <- t(data.frame( row.names = colnames))
 for (mod in c('CNV' , 'RPPA' , 'mRNA' , 'miRNA' , 'DNAm')) {
   print(mod)
-  datMeta <- rbind(datMeta , read.csv(paste0('./data/',mod,'/',mod,'_datMeta.csv') , row.names = 1))
-  
+  datMeta <- rbind(datMeta , read.csv(paste0('./data/',mod,'/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
 }
 datMeta <- datMeta[!(duplicated(datMeta)),]
 
