@@ -44,7 +44,7 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
     for path in TRAIN_DATA_PATH : 
         print(path)
         dattmp = pd.read_csv(path , index_col=0)
-        if meta.index[0] in dattmp.columns[0] :
+        if len(set(meta.index) & set(dattmp.columns)) > 0 :
             pass
         else :
             dattmp = dattmp.T
