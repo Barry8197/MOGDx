@@ -4,6 +4,9 @@ from tensorflow.keras import layers, optimizers, losses, metrics, Model
 import matplotlib.pyplot as plt
 import numpy as np
 import sklearn as sk
+from sklearn.metrics import precision_recall_curve , average_precision_score , recall_score ,  PrecisionRecallDisplay
+from sklearn.preprocessing import label_binarize
+from itertools import cycle
 
 def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , gnn_layers , layer_activation , learning_rate , mlb , split_val) :
     '''
@@ -86,6 +89,23 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
     for name, val in zip(model.metrics_names, test_metrics):
         print("\t{}: {:0.4f} \n".format(name, val))
         
+    test_predictions = model.predict(test_gen)
+
+    test_pred_conf = test_predictions.squeeze()
+    test_predictions = []
+    for pred , max_pred in zip(test_pred_conf , np.max(test_pred_conf, axis=1)) : 
+        test_predictions.append(list(pred == max_pred))
+    node_predictions = mlb.inverse_transform(np.array(test_predictions))
+    
+    y_score = label_binarize(node_predictions , classes=test_subjects.unique())
+    Y_test = label_binarize(test_subjects , classes=test_subjects.unique())
+    
+    PRC = average_precision_score(Y_test, y_score, average="weighted")
+    SNS = recall_score(Y_test, y_score, average="weighted")
+    F1 = 2*((PRC*SNS)/(PRC+SNS))
+     
+    test_metrics.extend([ PRC , SNS , F1 ])
+        
     return test_metrics , model , generator , gcn , history.history
 
 def transform_plot(model , generator , subjects , transform ) : 
@@ -136,3 +156,68 @@ def gnn_confusion_matrix(model , generator , subjects , mlb) :
     disp = sk.metrics.ConfusionMatrixDisplay(cm , display_labels= list(subjects.astype("category").cat.categories))
     
     return disp , node_predictions
+
+def gnn_precision_recall(model , generator , subjects , mlb_classes)  :
+    Y_test = label_binarize(subjects , classes=mlb_classes)
+
+    n_classes = len(subjects.unique()) if len(subjects.unique()) > 2 else 1
+
+    all_nodes = subjects.index
+    all_gen = generator.flow(all_nodes)
+    all_predictions = model.predict(all_gen)
+    y_score = all_predictions.squeeze()
+
+    # For each class
+    precision = dict()
+    recall = dict()
+    average_precision = dict()
+    average_recall = dict()
+    for i in range(n_classes):
+        precision[i], recall[i], _ = precision_recall_curve(Y_test[:, i], y_score[:, i])
+        average_precision[i] = average_precision_score(Y_test[:, i], y_score[:, i])
+
+    # A "micro-average": quantifying score on all classes jointly
+    precision["micro"], recall["micro"], _ = precision_recall_curve(
+        Y_test.ravel(), y_score.ravel()
+    )
+    average_precision["micro"] = average_precision_score(Y_test, y_score, average="micro")
+
+    # setup plot details
+    colors = cycle(["navy", "turquoise", "darkorange", "cornflowerblue", "teal"])
+
+    fig, ax = plt.subplots(figsize=(7, 8))
+
+    f_scores = np.linspace(0.2, 0.8, num=4)
+    lines, labels = [], []
+    for f_score in f_scores:
+        x = np.linspace(0.01, 1)
+        y = f_score * x / (2 * x - f_score)
+        (l,) = plt.plot(x[y >= 0], y[y >= 0], color="gray", alpha=0.2)
+        plt.annotate("f1={0:0.1f}".format(f_score), xy=(0.9, y[45] + 0.02))
+
+    display = PrecisionRecallDisplay(
+        recall=recall["micro"],
+        precision=precision["micro"],
+        average_precision=average_precision["micro"],
+    )
+    display.plot(ax=ax, name="Micro-average precision-recall", color="gold")
+
+    for i, color in zip(range(n_classes), colors):
+        display = PrecisionRecallDisplay(
+            recall=recall[i],
+            precision=precision[i],
+            average_precision=average_precision[i],
+        )
+        display.plot(ax=ax, name=f"Precision-recall for class {subjects.unique()[i]}", color=color)
+
+    # add the legend for the iso-f1 curves
+    handles, labels = display.ax_.get_legend_handles_labels()
+    handles.extend([l])
+    labels.extend(["iso-f1 curves"])
+    # set the legend and the axes
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.05])
+    ax.legend(handles=handles, labels=labels, loc="best")
+    ax.set_title("Extension of Precision-Recall curve to multi-class")
+
+    return fig

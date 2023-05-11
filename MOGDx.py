@@ -16,23 +16,13 @@ from palettable.wesanderson import Darjeeling2_5
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from matplotlib.lines import Line2D
+import warnings
+warnings.filterwarnings("ignore")
 mlb = MultiLabelBinarizer()
 
 print("Finished Library Import \n")
 def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
-    TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'expr' in i.lower()]
-
-    datModalities = {}
-    for path in TRAIN_DATA_PATH :
-        print(path) 
-        dattmp = pd.read_csv(path , index_col=0)
-        if 'TCGA' in dattmp.columns[0] :
-            pass
-        else :
-            dattmp = dattmp.T
-        dattmp.name = path.split('.')[1].split('_')[-1] 
-        datModalities[dattmp.name] = dattmp
-
+    
     META_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'meta' in i.lower()]
 
     meta = pd.Series(dtype=str)
@@ -47,9 +37,21 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
         meta = pd.concat([meta , meta_tmp[TARGET]])
 
     meta = meta[~meta.index.duplicated(keep='first')]
+    
+    TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'expr' in i.lower()]
+
+    datModalities = {}
+    for path in TRAIN_DATA_PATH : 
+        print(path)
+        dattmp = pd.read_csv(path , index_col=0)
+        if meta.index[0] in dattmp.columns[0] :
+            pass
+        else :
+            dattmp = dattmp.T
+        dattmp.name = path.split('.')[1].split('_')[-1] 
+        datModalities[dattmp.name] = dattmp
 
     return datModalities , meta
-
 
 def main(args): 
     
@@ -99,15 +101,18 @@ def main(args):
         output_generator.append(generator)
         
     accuracy = []
+    F1 = []
     output_file = args.output + '/' + "test_metrics.txt"
     with open(output_file , 'w') as f :
         i = 0
-        for acc in output_test :
+        for metric in output_test :
             i += 1
             f.write("Fold %i \n" % i)
-            f.write("loss = %2.3f , acc = %2.3f" % (acc[0] , acc[1]))
+            f.write("loss = %2.3f , acc = %2.3f , avg_prc = %2.3f , avg_recall = %2.3f , avg_f1 = %2.3f" % 
+                    (metric[0] , metric[1] , metric[2] , metric[3] , metric[4]))
             f.write('\n')
-            accuracy.append(acc[1])
+            accuracy.append(metric[1])
+            F1.append(metric[4])
             
         for i in range(len(output_metrics)) :
             f.write('\n')
@@ -126,8 +131,10 @@ def main(args):
                 f.write("".join(str(output_metrics[i][1][metric])))
                 f.write('\n')
             
-        f.write('\n')
+        f.write('-------------------------\n')
         f.write("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
+        f.write("%i Fold Cross Validation F1 = %2.2f \u00B1 %2.2f \n" %(args.n_splits , np.mean(F1)*100 , np.std(F1)*100))
+        f.write('-------------------------\n')
 
     print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
 
@@ -145,6 +152,10 @@ def main(args):
         tsne_plot = GNN.transform_plot(gcn , output_generator[best_model] , node_subjects , TSNE)
         output_file = args.output + '/' + "transform.png"
         tsne_plot.savefig(output_file , dpi = 300)
+        
+        precision_recall_plot = GNN.gnn_precision_recall(output_model[best_model] , output_generator[best_model] , node_subjects , mlb.classes_)
+        output_file = args.output + '/' + "precision_recall.png"
+        precision_recall_plot.savefig(output_file , dpi = 300)
 
 def construct_parser():
     # Training settings
