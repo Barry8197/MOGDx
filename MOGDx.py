@@ -23,7 +23,8 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
     TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'expr' in i.lower()]
 
     datModalities = {}
-    for path in TRAIN_DATA_PATH : 
+    for path in TRAIN_DATA_PATH :
+        print(path) 
         dattmp = pd.read_csv(path , index_col=0)
         if 'TCGA' in dattmp.columns[0] :
             pass
@@ -80,7 +81,7 @@ def main(args):
     for i, (train_index, test_index) in enumerate(skf.split(node_subjects.index, node_subjects)):
         
         train_index, val_index = train_test_split(
-        train_index, train_size=.85, test_size=None, stratify=node_subjects[train_index]
+        train_index, train_size=args.val_split_size, test_size=None, stratify=node_subjects[train_index]
         )
         
         train_subjects = node_subjects[train_index]
@@ -157,8 +158,8 @@ def construct_parser():
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
                         help='learning rate (default: 1.0)')
-    parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
-                        help='Learning rate step gamma (default: 0.7)')
+    #parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
+    #                    help='Learning rate step gamma (default: 0.7)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
     #parser.add_argument('--seed', type=int, default=None, metavar='S',
@@ -170,6 +171,8 @@ def construct_parser():
                         help='Disables Confusion Matrix and TSNE plots')
     parser.add_argument('--split-val', action='store_false' , default=True,
                         help='Disable validation split on AE and GNN')
+    parser.add_argument('--val-split-size', default=0.85 , type=float , help='Validation split of training set in'
+                        'each k fold split. Default of 0.85 is 60/10/30 train/val/test with a 10 fold split')
     parser.add_argument('--index-col' , type=str , default='', 
                         help ='Name of column in input data which refers to index.'
                         'Leave blank if none.')
