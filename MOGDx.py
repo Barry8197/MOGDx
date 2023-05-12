@@ -164,7 +164,7 @@ def main(args):
 
         node_predictions = [i[0] for i in node_predictions]
 
-        pred_df = pd.DataFrame(meta , columns=['Actual'])
+        pred_df = pd.DataFrame(meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))] , columns=['Actual'])
         pred_df['Prediction'] = node_predictions
         pred_df.to_csv(args.output + '/Predictions.csv')
 
