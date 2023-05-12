@@ -157,10 +157,10 @@ def gnn_confusion_matrix(model , generator , subjects , mlb) :
     
     return disp , node_predictions
 
-def gnn_precision_recall(model , generator , subjects , mlb_classes)  :
-    Y_test = label_binarize(subjects , classes=mlb_classes)
-
-    n_classes = len(subjects.unique()) if len(subjects.unique()) > 2 else 1
+def gnn_precision_recall(model , generator , subjects , mlb)  :
+    
+    n_classes = len(subjects.unique())
+    Y_test = mlb.transform(subjects.values.reshape(-1,1))
 
     all_nodes = subjects.index
     all_gen = generator.flow(all_nodes)
@@ -181,7 +181,6 @@ def gnn_precision_recall(model , generator , subjects , mlb_classes)  :
         Y_test.ravel(), y_score.ravel()
     )
     average_precision["micro"] = average_precision_score(Y_test, y_score, average="micro")
-
     # setup plot details
     colors = cycle(["navy", "turquoise", "darkorange", "cornflowerblue", "teal"])
 
@@ -220,4 +219,4 @@ def gnn_precision_recall(model , generator , subjects , mlb_classes)  :
     ax.legend(handles=handles, labels=labels, loc="best")
     ax.set_title("Extension of Precision-Recall curve to multi-class")
 
-    return fig
+    return fig , y_score

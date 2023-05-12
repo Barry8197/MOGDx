@@ -153,9 +153,20 @@ def main(args):
         output_file = args.output + '/' + "transform.png"
         tsne_plot.savefig(output_file , dpi = 300)
         
-        precision_recall_plot = GNN.gnn_precision_recall(output_model[best_model] , output_generator[best_model] , node_subjects , mlb.classes_)
+        precision_recall_plot , all_predictions_conf = GNN.gnn_precision_recall(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
         output_file = args.output + '/' + "precision_recall.png"
         precision_recall_plot.savefig(output_file , dpi = 300)
+        
+        all_predictions = []
+        for pred , max_pred in zip(all_predictions_conf , np.max(all_predictions_conf, axis=1)) : 
+            all_predictions.append(list(pred == max_pred))
+        node_predictions = mlb.inverse_transform(np.array(all_predictions))
+
+        node_predictions = [i[0] for i in node_predictions]
+
+        pred_df = pd.DataFrame(meta , columns=['Actual'])
+        pred_df['Prediction'] = node_predictions
+        pred_df.to_csv(args.output + '/Predictions.csv')
 
 def construct_parser():
     # Training settings
