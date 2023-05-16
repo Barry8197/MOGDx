@@ -114,7 +114,7 @@ diff_expr <- function(count_mtx , datMeta , trait) {
     subtypes = subtypes[subtypes != subtype1]
     for (subtype2 in subtypes)  {
       if (subtype1 != subtype2) {
-        res <- results(dds , contrast = c('paper_BRCA_Subtype_PAM50' , subtype1 , subtype2))
+        res <- results(dds , contrast = c(trait , subtype1 , subtype2))
       }
       top_genes = unique(c(top_genes , head(order(res$padj) , 50) ))
     }
