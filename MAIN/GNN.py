@@ -55,8 +55,8 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
         val_gen = generator.flow(val_subjects.index, val_targets)
         test_gen = generator.flow(test_subjects.index, test_targets)
 
-        #from tensorflow.keras.callbacks import EarlyStopping
-        #es_callback = EarlyStopping(monitor="val_acc", patience=100, restore_best_weights=True)
+        from tensorflow.keras.callbacks import EarlyStopping
+        es_callback = EarlyStopping(monitor="val_acc", patience=200, restore_best_weights=True)
 
         history = model.fit(
             train_gen,
@@ -64,20 +64,22 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
             validation_data=val_gen,
             verbose=2,
             shuffle=False,  # this should be False, since shuffling data means shuffling the whole graph
+            callbacks = [es_callback],
         )
     else :
         
         train_gen = generator.flow(list(train_subjects.index) + list(val_subjects.index), np.append(train_targets , val_targets , axis = 0))
         test_gen = generator.flow(test_subjects.index, test_targets)
 
-        #from tensorflow.keras.callbacks import EarlyStopping
-        #es_callback = EarlyStopping(monitor="val_acc", patience=100, restore_best_weights=True)
+        from tensorflow.keras.callbacks import EarlyStopping
+        es_callback = EarlyStopping(monitor="acc", patience=200, restore_best_weights=True)
 
         history = model.fit(
             train_gen,
             epochs=epochs,
             verbose=2,
             shuffle=False,  # this should be False, since shuffling data means shuffling the whole graph
+            callbacks = [es_callback],
         )
 
 
@@ -211,12 +213,12 @@ def gnn_precision_recall(model , generator , subjects , mlb)  :
 
     # add the legend for the iso-f1 curves
     handles, labels = display.ax_.get_legend_handles_labels()
-    handles.extend([l])
-    labels.extend(["iso-f1 curves"])
+    #handles.extend([l])
+    #labels.extend(["iso-f1 curves"])
     # set the legend and the axes
     ax.set_xlim([0.0, 1.0])
     ax.set_ylim([0.0, 1.05])
-    ax.legend(handles=handles, labels=labels, loc="best")
-    ax.set_title("Extension of Precision-Recall curve to multi-class")
+    ax.legend(handles=handles, labels=labels, loc="lower left")
+    ax.set_title("Multi-class Precision-Recall curve")
 
     return fig , y_score
