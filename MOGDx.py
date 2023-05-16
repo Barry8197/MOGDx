@@ -65,13 +65,16 @@ def main(args):
 
     graph_file = args.input + '/' + args.snf_net
     G = Network.network_from_csv(graph_file)
-    
-    node_subjects = meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))].reset_index(drop=True)
-    node_subjects.name = args.target
 
-    skf = StratifiedKFold(n_splits=args.n_splits , shuffle=True) 
+    if args.no_shuffle : 
+        skf = StratifiedKFold(n_splits=args.n_splits , shuffle=False) 
+    else :
+        skf = StratifiedKFold(n_splits=args.n_splits , shuffle=True) 
 
     print(skf)
+
+    node_subjects = meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))].reset_index(drop=True)
+    node_subjects.name = args.target
 
     output_test      = []
     output_model     = []
@@ -132,14 +135,14 @@ def main(args):
                 f.write('\n')
             
         f.write('-------------------------\n')
-        f.write("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
+        f.write("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f \n" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
         f.write("%i Fold Cross Validation F1 = %2.2f \u00B1 %2.2f \n" %(args.n_splits , np.mean(F1)*100 , np.std(F1)*100))
         f.write('-------------------------\n')
 
     print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
 
     best_model = np.where(accuracy == np.max(accuracy))[0][-1]
-    output_file = args.output + '/' + "best_model.h5"
+    output_file = args.output + '/' + "best_model"
     output_model[best_model].save(output_file)
 
     if args.no_output_plots : 
@@ -193,6 +196,8 @@ def construct_parser():
                         help='Disables Confusion Matrix and TSNE plots')
     parser.add_argument('--split-val', action='store_false' , default=True,
                         help='Disable validation split on AE and GNN')
+    parser.add_argument('--no-shuffle', action='store_true' , default=False,
+                        help='Disable shuffling of index for K fold split')
     parser.add_argument('--val-split-size', default=0.85 , type=float , help='Validation split of training set in'
                         'each k fold split. Default of 0.85 is 60/10/30 train/val/test with a 10 fold split')
     parser.add_argument('--index-col' , type=str , default='', 
