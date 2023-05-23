@@ -6,6 +6,7 @@ library(dplyr)
 library(ggplot2)
 library(edgeR)
 library(MethylPipeR)
+library(WGCNA)
 
 removeTraitNAs <- function(traitDF, otherDFs, trait) {
   rowsToKeep <- !is.na(traitDF[[trait]])
@@ -41,10 +42,11 @@ cvTrait <- function(trainMethyl, trainPhenotypes, trait, nFolds) {
                            nFolds = nFolds,
                            parallel = TRUE,
                            trace.it = 1)
+  print(methylModel)
   list(trait = trait, model = methylModel)
 }
 
-diff_expr <- function(count_mtx , datMeta , trait) {
+diff_expr <- function(count_mtx , datMeta , trait , n_genes , modality) {
   
   # Remove Genes with low level of expression -------------------------------
   to_keep = rowSums(count_mtx) > 0 #removed 1157 genes
@@ -53,12 +55,14 @@ diff_expr <- function(count_mtx , datMeta , trait) {
   count_mtx <- count_mtx[to_keep,]
   datExpr <- count_mtx
   
-  to_keep = filterByExpr(datExpr , group = datMeta[[trait]])
-  
-  print(paste0('keeping ',sum(to_keep) ,' genes'))
-  print(paste0("Removing ",length(to_keep) - sum(to_keep)," Genes"))
-  
-  count_mtx = count_mtx[to_keep,]
+  if (modality != 'miRNA') {
+    to_keep = filterByExpr(datExpr , group = datMeta[[trait]])
+    
+    print(paste0('keeping ',sum(to_keep) ,' genes'))
+    print(paste0("Removing ",length(to_keep) - sum(to_keep)," Genes"))
+    
+    count_mtx = count_mtx[to_keep,]
+  }
   
   # Remove Outliers ---------------------------------------------------------
   print('removing outliers')
@@ -116,7 +120,7 @@ diff_expr <- function(count_mtx , datMeta , trait) {
       if (subtype1 != subtype2) {
         res <- results(dds , contrast = c(trait , subtype1 , subtype2))
       }
-      top_genes = unique(c(top_genes , head(order(res$padj) , 50) ))
+      top_genes = unique(c(top_genes , head(order(res$padj) , n_genes) ))
     }
   }
   

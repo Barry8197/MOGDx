@@ -6,11 +6,14 @@ source('~/MOGDx/R/preprocess_functions.R')
 
 setwd('~/MOGDx/')
 
-colnames <- c('patient' ,  'race' , 'gender' , 'sample_type' , 'paper_BRCA_Subtype_PAM50')
+project <- 'KIPAN'
+trait <- 'subtype'
+
+colnames <- c('patient' ,  'race' , 'gender' , 'sample_type' , trait)
 datMeta <- t(data.frame( row.names = colnames))
-for (mod in c('CNV' , 'RPPA' , 'mRNA' , 'miRNA' , 'DNAm')) {
+for (mod in c( 'RPPA' , 'mRNA' , 'miRNA' , 'DNAm' , 'CNV')) {
   print(mod)
-  datMeta <- rbind(datMeta , read.csv(paste0('./data/',mod,'/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
+  datMeta <- rbind(datMeta , read.csv(paste0('./data/TCGA-',project,'/',mod,'/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
 }
 datMeta <- datMeta[!(duplicated(datMeta)),]
 
@@ -52,7 +55,7 @@ T = 10; 	# Number of Iterations, usually (10~20)
 W = SNF(adjacency_graphs, K , T)
 W <- W - diag(0.5 , dim(W)[1]) 
 
-g <- snf.to.graph(W , datMeta , 'paper_BRCA_Subtype_PAM50' , all_idx)
+g <- snf.to.graph(W , datMeta , trait , all_idx)
 
 write.csv(as_long_data_frame(g) , file = './Network/SNF/graph.csv')
 

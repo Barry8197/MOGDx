@@ -2,11 +2,12 @@ source('~/MOGDx/R/preprocess_functions.R')
 
 setwd('~/MOGDx/')
 
-trait = 'paper_BRCA_Subtype_PAM50'
-for (modality in c( 'mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV')) {
+trait = 'subtype'
+dataset = 'TCGA-KIPAN'
+for (modality in c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV' )) {
   
   print(modality)
-  load(paste0('./data/',modality,'/',modality,'_processed.RData'))
+  load(paste0('./data/',dataset , '/' , modality,'/',modality,'_processed.RData'))
   
   if (modality %in% c('miRNA' , 'mRNA')) {
     g <- expr.to.graph(datExpr , datMeta , trait , top_genes , modality)
@@ -19,8 +20,7 @@ for (modality in c( 'mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV')) {
   }
   
   write.csv(g, file = paste0('./Network/',modality,'/graph.csv'))
-  write.csv(datExpr , file = paste0('./data/',modality,'/datExpr_', modality , '.csv'))
-  write.csv(datMeta , file = paste0('./data/',modality,'/datMeta_', modality , '.csv'))
+  write.csv(datExpr , file = paste0('./data/',dataset, '/' ,modality,'/datExpr_', modality , '.csv'))
+  write.csv(datMeta , file = paste0('./data/',dataset, '/' ,modality,'/datMeta_', modality , '.csv'))
   
 }
-

@@ -3,101 +3,93 @@ library(SummarizedExperiment)
 library(dplyr)
 
 setwd('/data/PPMI/')
+tcga_project <- 'KIRC'
 
 # -------------------------------------------------------------------------
 # DNA Methylation ---------------------------------------------------------
 # -------------------------------------------------------------------------
 
-# 895 samples with 485577 cpg sites -> Does not need to be Normalised
-
 query.met <- GDCquery(
-      project = "TCGA-BRCA",
+      project = paste0("TCGA-",tcga_project),
       data.category = "DNA Methylation",
       data.type = "Methylation Beta Value",
       platform = "Illumina Human Methylation 450"
 )
 
-#GDCdownload(query = query.met)
+GDCdownload(query = query.met)
 data <- GDCprepare(
   query = query.met ,
   save = TRUE,
-  save.filename = '~/MOGDx/data/DNAm/DNAm.rda')
+  save.filename = paste0('~/MOGDx/data/TCGA-',tcga_project,'/DNAm/DNAm.rda')
+)
 
 # -------------------------------------------------------------------------
 # mRNA Gene Expression ----------------------------------------------------
 # -------------------------------------------------------------------------
 
-#1231 samples with 60666 genes -> Perform DESeq
-
 query.exp <- GDCquery(
-     project = "TCGA-BRCA",
+  project = paste0("TCGA-",tcga_project),
      data.category = "Transcriptome Profiling",
      data.type = "Gene Expression Quantification",
      workflow.type = "STAR - Counts"
 )
 
-#GDCdownload(query.exp)
+GDCdownload(query.exp)
 expdat <- GDCprepare(
       query = query.exp,
       save = TRUE,
-      save.filename = "~/MOGDx/data/mRNA/mRNA.rda"
+      save.filename = paste0('~/MOGDx/data/TCGA-',tcga_project,'/mRNA/mRNA.rda')
 )
 
 # -------------------------------------------------------------------------
 # miRNA -------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
-#1207 samples with 1882 genes -> Perform DESeq
-
 query.mirna <- GDCquery(
-     project = "TCGA-BRCA",
+  project = paste0("TCGA-",tcga_project),
      experimental.strategy = "miRNA-Seq",
      data.category = "Transcriptome Profiling",
      data.type = "miRNA Expression Quantification"
 )
  
-#GDCdownload(query.mirna)
+GDCdownload(query.mirna)
 mirna <- GDCprepare(
      query = query.mirna,
      save = TRUE,
-     save.filename = "~/MOGDx/data/miRNA/miRNA.rda"
+     save.filename = paste0('~/MOGDx/data/TCGA-',tcga_project,'/miRNA/miRNA.rda')
 )
 
 # -------------------------------------------------------------------------
 # RPPA  -------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
-#919 samples with -> 488 features -> How to analyse protein data??? 
-
 query.rppa <- GDCquery(
-     project = "TCGA-BRCA",
+  project = paste0("TCGA-",tcga_project),
      data.category = "Proteome Profiling",
      data.type = "Protein Expression Quantification"
 )
 
-#GDCdownload(query.rppa)
+GDCdownload(query.rppa)
 rppa <- GDCprepare(
     query = query.rppa,
     save = TRUE,
-    save.filename = "~/MOGDx/data/RPPA/RPPA.rda"
+    save.filename = paste0('~/MOGDx/data/TCGA-',tcga_project,'/RPPA/RPPA.rda')
 )
 
 # -------------------------------------------------------------------------
 # CNV ---------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
-# 1084 samples with -> 60624 features -> How to analyse CNV data
-
 query.cnv <- GDCquery(
-     project = "TCGA-BRCA",
+     project = paste0("TCGA-",tcga_project),
      data.category = "Copy Number Variation",
      data.type = "Gene Level Copy Number"
 )
 
-#GDCdownload(query.cnv)
+GDCdownload(query.cnv)
 data <- GDCprepare(
   query.cnv,
   save = TRUE,
-  save.filename = "~/MOGDx/data/CNV/CNV.rda"
+  save.filename = paste0('~/MOGDx/data/TCGA-',tcga_project,'/CNV/CNV.rda')
   
 )
