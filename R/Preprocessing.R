@@ -50,14 +50,14 @@ count_mtx <- count_mtx[ , common_idx]
 datMeta <- datMeta[common_idx , ]
 
 # Perform differential expression analysis
-diff_expr_res <- diff_expr(count_mtx , datMeta , 'paper_Grade' , 500)
+diff_expr_res <- diff_expr(count_mtx , datMeta , trait , 500 , 'mRNA')
 
 # Save differential expression results
 datExpr <- diff_expr_res$datExpr
 datMeta <- diff_expr_res$datMeta
 dds <- diff_expr_res$dds
 top_genes <- diff_expr_res$top_genes
-save(datExpr, datMeta, dds, top_genes, file=paste0('~/MOGDx/data/TCGA-KIPAN/mRNA/mRNA_processed.RData'))
+save(datExpr, datMeta, dds, top_genes, file=paste0('~/MOGDx/data/TCGA-',project,'/mRNA/mRNA_processed.RData'))
 
 # -------------------------------------------------------------------------
 # miRNA preprocessing -----------------------------------------------------
@@ -104,7 +104,7 @@ count_mtx <- count_mtx[,common_idx]
 datMeta <- datMeta[common_idx , ]
 
 # Perform differential expression analysis
-diff_expr_res <- diff_expr(count_mtx , datMeta , 'paper_Grade' , 200 , 'miRNA')
+diff_expr_res <- diff_expr(count_mtx , datMeta , trait , 200 , 'miRNA')
 
 # Save differential expression results
 datExpr <- diff_expr_res$datExpr

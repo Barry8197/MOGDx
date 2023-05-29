@@ -180,7 +180,7 @@ expr.to.graph<-function(datExpr , datMeta , trait , top_genes , modality){
   return(as_long_data_frame(g))
 }
 
-snf.to.graph <- function(W , datMeta , trait , idx) {
+snf.to.graph <- function(W , datMeta , trait , idx , thresh) {
   
   g <- graph.adjacency(
     W,
@@ -201,7 +201,7 @@ snf.to.graph <- function(W , datMeta , trait , idx) {
   g <- simplify(g, remove.multiple=TRUE, remove.loops=TRUE)
   
   # Remove edges below absolute Pearson correlation 0.8
-  threshold <- quantile(W , 0.975)
+  threshold <- quantile(W , thresh)
   g <- delete_edges(g, E(g)[which(E(g)$weight<threshold)])
   
   # Remove any vertices remaining that have no edges

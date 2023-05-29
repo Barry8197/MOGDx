@@ -2,9 +2,9 @@ source('~/MOGDx/R/preprocess_functions.R')
 
 setwd('~/MOGDx/')
 
-trait = 'subtype'
-dataset = 'TCGA-KIPAN'
-for (modality in c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV' )) {
+trait = 'paper_Grade'
+dataset = 'TCGA-LGG'
+for (modality in c('mRNA' , 'miRNA' , 'DNAm' , 'CNV' ,'RPPA' )) {
   
   print(modality)
   load(paste0('./data/',dataset , '/' , modality,'/',modality,'_processed.RData'))
@@ -24,3 +24,4 @@ for (modality in c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CNV' )) {
   write.csv(datMeta , file = paste0('./data/',dataset, '/' ,modality,'/datMeta_', modality , '.csv'))
   
 }
+
