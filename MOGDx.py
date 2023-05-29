@@ -15,6 +15,7 @@ import numpy as np
 from palettable.wesanderson import Darjeeling2_5
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
+from sklearn import preprocessing
 from matplotlib.lines import Line2D
 import warnings
 warnings.filterwarnings("ignore")
@@ -38,7 +39,7 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
 
     meta = meta[~meta.index.duplicated(keep='first')]
     
-    TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'expr' in i.lower()]
+    TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in sorted(os.listdir(DATA_PATH)) if 'expr' in i.lower()]
 
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
@@ -48,7 +49,7 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
             pass
         else :
             dattmp = dattmp.T
-        dattmp.name = path.split('.')[1].split('_')[-1] 
+        dattmp.name = path.split('.')[0].split('_')[-1] 
         datModalities[dattmp.name] = dattmp
 
     return datModalities , meta
@@ -64,7 +65,7 @@ def main(args):
     datModalities , meta = data_parsing(args.input , args.target , args.index_col)
 
     graph_file = args.input + '/' + args.snf_net
-    G = Network.network_from_csv(graph_file)
+    G = Network.network_from_csv(graph_file , args.no_psn)
 
     if args.no_shuffle : 
         skf = StratifiedKFold(n_splits=args.n_splits , shuffle=False) 
@@ -93,8 +94,16 @@ def main(args):
         val_subjects   = node_subjects[val_index]
         test_subjects  = node_subjects[test_index]
 
-        node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
-        nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
+        
+        if args.psn_only : 
+            target_encoding = preprocessing.LabelBinarizer()
+            all_idx = [G.nodes[v]['idx'] for v in G.nodes]
+            proxy_node_features = target_encoding.fit_transform(np.array(all_idx))
+            nx.set_node_attributes(G , pd.Series(list(proxy_node_features) , index=G.nodes()) , 'node_features')
+            ae_losses = []
+        else :
+            node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
+            nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
 
         test_metrics , model , generator , gcn , model_history = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , args.epochs , args.layers , args.layer_activation , args.lr , mlb , args.split_val)
         
@@ -198,6 +207,10 @@ def construct_parser():
                         help='Disable validation split on AE and GNN')
     parser.add_argument('--no-shuffle', action='store_true' , default=False,
                         help='Disable shuffling of index for K fold split')
+    parser.add_argument('--psn-only', action='store_true' , default=False,
+                        help='Dont train on any node features')
+    parser.add_argument('--no-psn', action='store_true' , default=False,
+                        help='Dont train on PSN (removal of edges)')
     parser.add_argument('--val-split-size', default=0.85 , type=float , help='Validation split of training set in'
                         'each k fold split. Default of 0.85 is 60/10/30 train/val/test with a 10 fold split')
     parser.add_argument('--index-col' , type=str , default='', 

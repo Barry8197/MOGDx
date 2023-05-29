@@ -4,7 +4,7 @@ import sys
 sys.path.insert(0, './data/MAIN/')
 import AE
 
-def network_from_csv(NETWORK_PATH , weighted=False) :
+def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
     '''
     Generate a networkx network from a as_long_data_frame() object from igraph in R
     '''
@@ -33,6 +33,8 @@ def network_from_csv(NETWORK_PATH , weighted=False) :
                 edges.append((nodes[nodes['node'] == edge1].index[0] ,nodes[nodes['node'] == edge2].index[0] , weight ))
 
         G.add_weighted_edges_from(edges)
+    elif no_psn == True :
+         pass
     else :
         for edge1 , edge2  in zip(network['from'] , network['to'] ) : 
                 edges.append((nodes[nodes['node'] == edge1].index[0] ,nodes[nodes['node'] == edge2].index[0] ))
