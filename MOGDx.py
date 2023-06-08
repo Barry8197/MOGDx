@@ -23,8 +23,10 @@ mlb = MultiLabelBinarizer()
 
 print("Finished Library Import \n")
 def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
-    
-    META_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'meta' in i.lower()]
+    '''
+    Parse the expression and meta files in the input directory
+    '''
+    META_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'meta' in i.lower()] # Looks for all meta file names
 
     meta = pd.Series(dtype=str)
     for path in META_DATA_PATH : 
@@ -33,13 +35,13 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
         if INDEX_COL == '' :
             pass
         else :
-            meta_tmp = meta_tmp.set_index(INDEX_COL)
+            meta_tmp = meta_tmp.set_index(INDEX_COL)   # Sets the patient ids to the index of the meta file
             
         meta = pd.concat([meta , meta_tmp[TARGET]])
 
-    meta = meta[~meta.index.duplicated(keep='first')]
+    meta = meta[~meta.index.duplicated(keep='first')] # Remove duplicated entries
     
-    TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in sorted(os.listdir(DATA_PATH)) if 'expr' in i.lower()]
+    TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in sorted(os.listdir(DATA_PATH)) if 'expr' in i.lower()] # Looks for all expr file names
 
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
@@ -49,24 +51,29 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
             pass
         else :
             dattmp = dattmp.T
-        dattmp.name = path.split('.')[0].split('_')[-1] 
+        dattmp.name = path.split('.')[0].split('_')[-1] #Assumes there is no '.' in file name as per specified naming convention. Can lead to erros down stream. Files should be modality_datEXpr.csv e.g. mRNA_datExpr.csv
         datModalities[dattmp.name] = dattmp
 
     return datModalities , meta
 
 def main(args): 
-    
-    if not os.path.exists(args.output) : 
-        os.makedirs(args.output, exist_ok=True)
+    '''
+    Main function of MOGDx pipelin. Shell for calling all features of the architecture
+    '''
+    if not os.path.exists(args.output) :            
+        os.makedirs(args.output, exist_ok=True)     # Create Output directory if it doesnt exist
         
     device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
     print("Using %s device" % device)
 
-    datModalities , meta = data_parsing(args.input , args.target , args.index_col)
+    datModalities , meta = data_parsing(args.input , args.target , args.index_col) # Pull in expression and meta files
 
     graph_file = args.input + '/' + args.snf_net
-    G = Network.network_from_csv(graph_file , args.no_psn)
+    G = Network.network_from_csv(graph_file , args.no_psn) # Create Network from graph.csv
 
+    '''
+    Perform Cross Vailidation Split. args.no_shuffle means there is no randomisation to the splits
+    '''
     if args.no_shuffle : 
         skf = StratifiedKFold(n_splits=args.n_splits , shuffle=False) 
     else :
@@ -82,19 +89,28 @@ def main(args):
     output_generator = []
     output_metrics   = []
 
-    mlb.fit_transform(meta.values.reshape(-1,1))
+    mlb.fit_transform(meta.values.reshape(-1,1)) # Multi-label binarer to one hot encode the classes 
 
+    '''
+    This loop trains and tests the pipeline on each cross validation split
+    '''
     for i, (train_index, test_index) in enumerate(skf.split(node_subjects.index, node_subjects)):
         
         train_index, val_index = train_test_split(
-        train_index, train_size=args.val_split_size, test_size=None, stratify=node_subjects[train_index]
-        )
+        train_index, train_size=args.val_split_size, test_size=None, stratify=node_subjects[train_index]) # Get validation split from training set
         
+        '''
+        Split the patient ids into train/test/val splits
+        If args.no_val is True train and validation are merged later
+        '''
         train_subjects = node_subjects[train_index]
         val_subjects   = node_subjects[val_index]
         test_subjects  = node_subjects[test_index]
 
-        
+        '''
+        Train autoencoder and embed the latent dimension 
+        from autoencoder as node embeddings in the Graph
+        '''
         if args.psn_only : 
             target_encoding = preprocessing.LabelBinarizer()
             all_idx = [G.nodes[v]['idx'] for v in G.nodes]
@@ -105,6 +121,10 @@ def main(args):
             node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
             nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
 
+        '''
+        Train and test the Graph Neural Network
+        Save the results into lists
+        '''
         test_metrics , model , generator , gcn , model_history = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , args.epochs , args.layers , args.layer_activation , args.lr , mlb , args.split_val)
         
         output_metrics.append([ae_losses , model_history])
@@ -112,6 +132,10 @@ def main(args):
         output_model.append(model)
         output_generator.append(generator)
         
+    '''
+    Format the output and combine 
+    results from each cross validation split
+    '''
     accuracy = []
     F1 = []
     output_file = args.output + '/' + "test_metrics.txt"
@@ -150,10 +174,16 @@ def main(args):
 
     print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
 
+    '''
+    Save the best GCN model in the output directory
+    '''
     best_model = np.where(accuracy == np.max(accuracy))[0][-1]
     output_file = args.output + '/' + "best_model"
     output_model[best_model].save(output_file)
 
+    '''
+    Generate output plots from the best model
+    '''
     if args.no_output_plots : 
         cmplt , pred = GNN.gnn_confusion_matrix(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
         cmplt.plot(  cmap = Darjeeling2_5.mpl_colormap )
