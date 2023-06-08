@@ -14,7 +14,12 @@ Multi-omic Graph Diagnosis (MOGDx) is a tool for the integration of omic data an
 
 ## Installation
 
-## Requiremnets
+## Requirements
+All requirements are specified in requirements.txt
+
+To create virtual env execute : 
+ `conda create --name <env> --file requirements.txt` 
+
 
 ## Contact
 Barry Ryan 
