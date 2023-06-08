@@ -65,13 +65,13 @@ Copy the patient similarity network in  `./Network/SNF/graph.csv` to this folder
 MOGDx is a command line tool. A sample command is : \
 `python MOGDx.py -i "/raw_data/raw_BRCA" -o "./Output/BRCA/"  -snf "graph.csv" --n-splits 5 -ld 32 64 64 32 32 --target "paper_BRCA_Subtype_PAM50" --index-col "patient" --epochs 2500 --lr 0.01 --layer-activation "elu" "elu"  --layers 128 128`
 
--i is the location of the raw data containing all datExpr, datMeta and graph.csv files
--o is the location where the output will be printed
--snf is the name of the fused psn 
---n-splits is the number of cross validation splits
--ld is the latent dimension per modality. It is order alphabetically 
---target is the phenotype being classified
---index-col is the column containing the patient ids 
+-i is the location of the raw data containing all datExpr, datMeta and graph.csv files \
+-o is the location where the output will be printed \
+-snf is the name of the fused psn  \
+--n-splits is the number of cross validation splits \
+-ld is the latent dimension per modality. It is order alphabetically  \
+--target is the phenotype being classified \
+--index-col is the column containing the patient ids  \
 
 All other arguments are related to the Graph Convolutional Network model
 
