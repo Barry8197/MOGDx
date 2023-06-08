@@ -1,7 +1,7 @@
 import pandas as pd
 import networkx as nx
 import sys  
-sys.path.insert(0, './data/MAIN/')
+sys.path.insert(0, './MAIN/')
 import AE
 
 def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
