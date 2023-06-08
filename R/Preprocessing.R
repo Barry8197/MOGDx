@@ -10,8 +10,8 @@ source('~/MOGDx/R/preprocess_functions.R')
 
 setwd('~/MOGDx/') 
 
-project <- 'KIPAN'
-trait <- 'subtype'
+project <- 'BRCA'
+trait <- 'paper_BRCA_Subtype_PAM50'
   
 # -------------------------------------------------------------------------
 # META File Generation ----------------------------------------------------

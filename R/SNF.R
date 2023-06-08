@@ -6,8 +6,8 @@ source('~/MOGDx/R/preprocess_functions.R')
 
 setwd('~/MOGDx/')
 
-project <- 'LGG'
-trait <- 'paper_Grade'
+project <- 'BRCA'
+trait <- 'paper_BRCA_Subtype_PAM50'
 mod_list <- c('mRNA','miRNA' , 'DNAm' , 'CNV' , 'RPPA')
 
 colnames <- c('patient' ,  'race' , 'gender' , 'sample_type' , trait)
@@ -59,9 +59,10 @@ T = 10; 	# Number of Iterations, usually (10~20)
 W = SNF(adjacency_graphs, K , T)
 W <- W - diag(0.5 , dim(W)[1]) 
 
-g <- snf.to.graph(W , datMeta , trait , all_idx , 0.95)
+g <- snf.to.graph(W , datMeta , trait , all_idx , 0.96)
 
 length(V(g))
-write.csv(as_long_data_frame(g) , 
-          file = paste0('./Network/modality_expts/',project,'/',length(mod_list),'/',paste0(mod_list , collapse = '_'),'_graph.csv'))
+write.csv(as_long_data_frame(g) , file = './Network/SNF/graph.csv')
+#write.csv(as_long_data_frame(g) , 
+#          file = paste0('./Network/modality_expts/',project,'/',length(mod_list),'/',paste0(mod_list , collapse = '_'),'_graph.csv'))
 
