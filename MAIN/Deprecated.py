@@ -116,3 +116,35 @@ model = tf.keras.Model(inputs=x_inp, outputs=predictions)
 #from stellargraph.layer import GraphSAGE
 
 '''
+
+'''    joined_train_scaled, joined_test_scaled , joined_val_scaled = scale_datasets(joined_df['train'], joined_df['test'],joined_df['val'])    
+
+    auto_encoder = AutoEncoders(len(joined_train_scaled.columns) , 128  , 64 , 32)
+
+    auto_encoder.compile(
+        loss=losses.mean_absolute_error,
+        metrics=['mae'],
+        optimizer=optimizers.Adam(learning_rate=0.01)
+    )
+
+    history = auto_encoder.fit(
+        joined_train_scaled, 
+        joined_train_scaled, 
+        epochs=50, 
+        batch_size=32, 
+        validation_data=(joined_test_scaled, joined_test_scaled)
+    )
+
+    sequential_layer = 'sequential_' + str(len(reduced_df)*2)
+    encoder_layer = auto_encoder.get_layer(sequential_layer)
+
+    reduced_train = pd.DataFrame(encoder_layer.predict(joined_train_scaled) , index = joined_train_scaled.index)
+    reduced_test  = pd.DataFrame(encoder_layer.predict(joined_test_scaled)  , index = joined_test_scaled.index)
+    reduced_val   = pd.DataFrame(encoder_layer.predict(joined_val_scaled)   , index = joined_val_scaled.index)
+
+    feature_prefix = 'feature_'
+    reduced_train = reduced_train.add_prefix(feature_prefix)
+    reduced_test  = reduced_test.add_prefix(feature_prefix)
+    reduced_val   = reduced_val.add_prefix(feature_prefix)
+
+    return pd.concat([reduced_train , reduced_test , reduced_val])'''
