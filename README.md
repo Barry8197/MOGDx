@@ -13,6 +13,48 @@ Multi-omic Graph Diagnosis (MOGDx) is a tool for the integration of omic data an
 ![Python](./workflow_diagrams/python_inkscape.png?raw=true)
 
 ## Installation
+A working version of R and Python is required. R version 4.2.2 and Python version 3.9.2 was used to obtain all results.
+
+Steps 1-4 are executed in R, while step 5 is designed to run on a cluster with a GPU but can be executed locally if there is sufficient memory availability. 
+
+### Step 1 - Data Download
+Use the R script `data_download.R` to download all data changing the project to BRCA/LGG/KICH/KIRC/KICH
+
+### Step 2 - Preprocessing
+Create a folder called data and a folder for each dataset with naming convention 'TCGA-' e.g. 'TCGA-BRCA' inside this folder.
+
+Run the R script `Preprocessing.R` specifying the phenotypical trait and project. 
+
+The options are 
+BRCA : 
+project = 'BRCA'
+trait = 'paper_paper_BRCA_Subtype_PAM50'
+
+LGG : 
+project = 'LGG'
+trait = 'paper_Grade'
+
+Note : To create the KIPAN dataset, the KIRC, KICP and KICH datasets have to be combined. This can be achieved by copying the downloaded files
+from all three seperate datasets into a single dataset called KIPAN keeping the same naming structures. A column named 'subtype' specifying which dataset
+the patient came from needs to be created in the Meta data file. A basic knowledge of R is required for this. 
+
+KIPAN : 
+project = 'KIPAN'
+trait = 'subtype'
+
+### Step 3 - Graph Generation
+Create a folder called Network, to store all graphs. Within this folder create a folder for each modality. Each modalities graph will be saved inside
+their respective folder with name graph.csv.
+
+Use the R script `knn_graph_generation.R` specifying the phenotypical trait, project and modalities downloaded in the for loop.
+
+### Step 4 - SNF
+Create a folder in Network called SNF
+Copy each modalities graph.csv to this folder with naming convention 'modality_graph.csv' e.g. 'mRNA_graph.csv'
+
+Specify the modalities of interest in the list `mod_list`
+
+Run the R script `SNF.R`
 
 ## Requirements
 All requirements are specified in requirements.txt
