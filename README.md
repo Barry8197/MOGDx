@@ -71,12 +71,12 @@ MOGDx is a command line tool. A sample command is : \
 --n-splits is the number of cross validation splits \
 -ld is the latent dimension per modality. It is order alphabetically  \
 --target is the phenotype being classified \
---index-col is the column containing the patient ids  \
+--index-col is the column containing the patient ids  
 
 All other arguments are related to the Graph Convolutional Network model
 
 ## Requirements
-All requirements are specified in requirements.txt \
+All requirements are specified in requirements.txt 
 
 To create virtual env execute :  \
  `conda create --name <env> --file requirements.txt` 
