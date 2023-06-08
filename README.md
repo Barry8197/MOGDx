@@ -28,11 +28,11 @@ Run the R script `Preprocessing.R` specifying the phenotypical trait and project
 The options are \
 BRCA : \
 project = 'BRCA' \
-trait = 'paper_paper_BRCA_Subtype_PAM50' \
+trait = 'paper_paper_BRCA_Subtype_PAM50' 
 
 LGG : \
 project = 'LGG' \
-trait = 'paper_Grade' \
+trait = 'paper_Grade' 
 
 Note : To create the KIPAN dataset, the KIRC, KICP and KICH datasets have to be combined. This can be achieved by copying the downloaded files 
 from all three seperate datasets into a single dataset called KIPAN keeping the same naming structures. A column named 'subtype' specifying which dataset
@@ -40,7 +40,7 @@ the patient came from needs to be created in the Meta data file. A basic knowled
 
 KIPAN :  \
 project = 'KIPAN' \
-trait = 'subtype' \
+trait = 'subtype' 
 
 ### Step 3 - Graph Generation
 Create a folder called Network, to store all graphs. Within this folder create a folder for each modality. Each modalities graph will be saved inside
@@ -52,9 +52,28 @@ Use the R script `knn_graph_generation.R` specifying the phenotypical trait, pro
 Create a folder in Network called SNF \
 Copy each modalities graph.csv to this folder with naming convention 'modality_graph.csv' e.g. 'mRNA_graph.csv' \
 
-Specify the modalities of interest in the list `mod_list` \ 
+Specify the modalities of interest in the list `mod_list` 
 
-Run the R script `SNF.R` \
+Run the R script `SNF.R` 
+
+### Step 5 - Execute MOGDx.py
+Copy all expression and meta files for all modalities into a single folder with naming convention 'modality_datExpr.csv'/'modality_datMeta.csv' e.g. 'mRNA_datExpr.csv'/'mRNA_datMeta.csv'. 
+These files will have been created in the directory `./data/TCGA-BRCA/mRNA/datExpr.csv` for the mRNA expression file in the BRCA project
+
+Copy the patient similarity network in  `./Network/SNF/graph.csv` to this folder also
+
+MOGDx is a command line tool. A sample command is : \
+`python MOGDx.py -i "/raw_data/raw_BRCA" -o "./Output/BRCA/"  -snf "graph.csv" --n-splits 5 -ld 32 64 64 32 32 --target "paper_BRCA_Subtype_PAM50" --index-col "patient" --epochs 2500 --lr 0.01 --layer-activation "elu" "elu"  --layers 128 128`
+
+-i is the location of the raw data containing all datExpr, datMeta and graph.csv files
+-o is the location where the output will be printed
+-snf is the name of the fused psn 
+--n-splits is the number of cross validation splits
+-ld is the latent dimension per modality. It is order alphabetically 
+--target is the phenotype being classified
+--index-col is the column containing the patient ids 
+
+All other arguments are related to the Graph Convolutional Network model
 
 ## Requirements
 All requirements are specified in requirements.txt \
