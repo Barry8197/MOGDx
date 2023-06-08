@@ -25,22 +25,22 @@ Create a folder called data and a folder for each dataset with naming convention
 
 Run the R script `Preprocessing.R` specifying the phenotypical trait and project. 
 
-The options are 
-BRCA : 
-project = 'BRCA'
-trait = 'paper_paper_BRCA_Subtype_PAM50'
+The options are \
+BRCA : \
+project = 'BRCA' \
+trait = 'paper_paper_BRCA_Subtype_PAM50' \
 
-LGG : 
-project = 'LGG'
-trait = 'paper_Grade'
+LGG : \
+project = 'LGG' \
+trait = 'paper_Grade' \
 
-Note : To create the KIPAN dataset, the KIRC, KICP and KICH datasets have to be combined. This can be achieved by copying the downloaded files
+Note : To create the KIPAN dataset, the KIRC, KICP and KICH datasets have to be combined. This can be achieved by copying the downloaded files 
 from all three seperate datasets into a single dataset called KIPAN keeping the same naming structures. A column named 'subtype' specifying which dataset
 the patient came from needs to be created in the Meta data file. A basic knowledge of R is required for this. 
 
-KIPAN : 
-project = 'KIPAN'
-trait = 'subtype'
+KIPAN :  \
+project = 'KIPAN' \
+trait = 'subtype' \
 
 ### Step 3 - Graph Generation
 Create a folder called Network, to store all graphs. Within this folder create a folder for each modality. Each modalities graph will be saved inside
@@ -49,17 +49,17 @@ their respective folder with name graph.csv.
 Use the R script `knn_graph_generation.R` specifying the phenotypical trait, project and modalities downloaded in the for loop.
 
 ### Step 4 - SNF
-Create a folder in Network called SNF
-Copy each modalities graph.csv to this folder with naming convention 'modality_graph.csv' e.g. 'mRNA_graph.csv'
+Create a folder in Network called SNF \
+Copy each modalities graph.csv to this folder with naming convention 'modality_graph.csv' e.g. 'mRNA_graph.csv' \
 
-Specify the modalities of interest in the list `mod_list`
+Specify the modalities of interest in the list `mod_list` \ 
 
-Run the R script `SNF.R`
+Run the R script `SNF.R` \
 
 ## Requirements
-All requirements are specified in requirements.txt
+All requirements are specified in requirements.txt \
 
-To create virtual env execute : 
+To create virtual env execute :  \
  `conda create --name <env> --file requirements.txt` 
 
 
