@@ -10,8 +10,7 @@ from itertools import cycle
 
 def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , gnn_layers , layer_activation , learning_rate , mlb , split_val) :
     '''
-    Code for training the GNN model. A GCN is implemented using the StellarGraph
-    library in python. 
+    Code for training the GNN model
     '''
     
     # Transform train, val and test subjects to one hot encoded
@@ -87,11 +86,6 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
     sg.utils.plot_history(history)
     plt.show()
 
-    '''
-    Obtain performance metrics for the model including accuracy, F1 score, precision
-    If the task is a multi-classification tasks the F1 score and precision scores are
-    calculated using a One vs. Rest methodology
-    '''
     test_metrics = model.evaluate(test_gen)
     print("\nTest Set Metrics:")
     for name, val in zip(model.metrics_names, test_metrics):
@@ -117,29 +111,19 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
     return test_metrics , model , generator , gcn , history.history
 
 def transform_plot(model , generator , subjects , transform ) : 
-    '''
-    This function generates a TSNE plot of the latent node embeddings 
-    learnt by the GNN model implemented
-    '''
-    
-    # Get embeddings from model
+
     x_inp, x_out = model.in_out_tensors()
     embedding_model = Model(inputs=x_inp, outputs=x_out)
     
-    # Get subject ids and predict their embedding from the model
     all_nodes = subjects.index
     all_gen = generator.flow(all_nodes)
     emb = embedding_model.predict(all_gen)
 
     X = emb.squeeze(0)
     
-    # Perform Transformation
     trans = transform(n_components=2 , init='pca' , learning_rate='auto')
     X_reduced = trans.fit_transform(X)
 
-    '''
-    Scatter plot of latenet embeddings learnt
-    '''
     fig, ax = plt.subplots(figsize=(14, 10))
     scatter = plt.scatter(
                 X_reduced[:, 0],
@@ -159,9 +143,6 @@ def transform_plot(model , generator , subjects , transform ) :
     return fig
 
 def gnn_confusion_matrix(model , generator , subjects , mlb) :
-    '''
-    Create a confusion matrix plot of a stellargraph model object
-    '''
 
     all_nodes = subjects.index
     all_gen = generator.flow(all_nodes)
@@ -179,9 +160,6 @@ def gnn_confusion_matrix(model , generator , subjects , mlb) :
     return disp , node_predictions
 
 def gnn_precision_recall(model , generator , subjects , mlb)  :
-    '''
-    Create precision recall plot for each class in the task using a One vs. Rest methodology
-    '''
     
     n_classes = len(subjects.unique())
     Y_test = mlb.transform(subjects.values.reshape(-1,1))

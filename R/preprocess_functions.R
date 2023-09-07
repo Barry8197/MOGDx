@@ -137,7 +137,7 @@ make.knn.graph<-function(D,k){
     matches <- setdiff(order(dist[i,],decreasing = F)[1:(k+1)],i)
     # add edges in both directions
     edges <- rbind(edges,cbind(rep(i,k),matches))  
-    edges <- rbind(edges,cbind(matches,rep(i,k)))  
+    #edges <- rbind(edges,cbind(matches,rep(i,k)))  
   }
   # create a graph from the edgelist
   graph <- graph_from_edgelist(edges,directed=F)
@@ -156,10 +156,29 @@ expr.to.graph<-function(datExpr , datMeta , trait , top_genes , modality){
     mat <- t(datExpr[ , top_genes[[trait]]])
   }
   
-  mat <- mat - rowMeans(mat)
+  if (modality %in% c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA')) {
+    mat <- mat - rowMeans(mat)
+  }
+  
   corr_mat <- as.matrix(as.dist(cor(mat, method="pearson")))
+  no_sd_ids <- colnames(mat[ , colSds(mat) == 0 ])
+  if (length(no_sd_ids) > 0) { 
+    print('Getting pseudo correlations for ids with 0 standard deviation')
+    for (idx in no_sd_ids) {
+      no_sd_corr <- c()
+      for (pat_id in colnames(mat)) {
+        no_sd_corr <- c(no_sd_corr , (sum(mat[,idx] == mat[,pat_id])+sum(mat[,idx] - mat[,pat_id]))/dim(mat)[1])
+      }
+      corr_mat[idx , ] <- no_sd_corr
+      corr_mat[, idx] <- no_sd_corr
+    }
+  }
+  
+  diag(corr_mat) <- 1
+  
   heatmap(corr_mat)
   
+  print(dim(mat))
   g <- make.knn.graph(corr_mat , 15)
   
   plot.igraph(g$graph,layout=g$layout, vertex.frame.color='black', vertex.color=as.numeric(as.factor(datMeta[[trait]])),
