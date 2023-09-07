@@ -1,5 +1,6 @@
 import stellargraph as sg
 import tensorflow as tf
+import pandas as pd
 from tensorflow.keras import layers, optimizers, losses, metrics, Model
 import matplotlib.pyplot as plt
 import numpy as np
@@ -116,7 +117,7 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
         
     return test_metrics , model , generator , gcn , history.history
 
-def transform_plot(model , generator , subjects , transform ) : 
+def transform_plot(model , generator , subjects, embed_index , transform ) : 
     '''
     This function generates a TSNE plot of the latent node embeddings 
     learnt by the GNN model implemented
@@ -132,10 +133,13 @@ def transform_plot(model , generator , subjects , transform ) :
     emb = embedding_model.predict(all_gen)
 
     X = emb.squeeze(0)
-    
+    print(subjects)
+    print(all_nodes)
     # Perform Transformation
     trans = transform(n_components=2 , init='pca' , learning_rate='auto')
     X_reduced = trans.fit_transform(X)
+
+    X = pd.DataFrame(X , index = embed_index)
 
     '''
     Scatter plot of latenet embeddings learnt
@@ -156,7 +160,7 @@ def transform_plot(model , generator , subjects , transform ) :
         title=f"{transform.__name__} visualization of GCN embeddings for BRCA dataset",
     )
     
-    return fig
+    return fig , X
 
 def gnn_confusion_matrix(model , generator , subjects , mlb) :
     '''

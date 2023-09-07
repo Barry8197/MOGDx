@@ -24,6 +24,7 @@ def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
     # Add nodes to Graph object, resetting index to begin from 0
     nodes = pd.concat([node_from , node_to]).drop_duplicates().reset_index(drop=True)
     G.add_nodes_from(nodes.index)
+    nodes['id'] = [str(i) for i in nodes['id']] # Convert node names to strings
     nx.set_node_attributes(G , nodes['id'] , 'idx')
 
     # Add edges and weights (if applicable to network)

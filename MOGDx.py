@@ -40,17 +40,25 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
         meta = pd.concat([meta , meta_tmp[TARGET]])
 
     meta = meta[~meta.index.duplicated(keep='first')] # Remove duplicated entries
-    
+    meta.index = [str(i) for i in meta.index] # Ensures the patient ids are strings
+    print(meta.head())
+
     TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in sorted(os.listdir(DATA_PATH)) if 'expr' in i.lower()] # Looks for all expr file names
 
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
         print(path)
         dattmp = pd.read_csv(path , index_col=0)
+        
         if len(set(meta.index) & set(dattmp.columns)) > 0 :
             pass
+            print('not transposed')
         else :
             dattmp = dattmp.T
+            print('transposed')
+
+        print(dattmp.head())
+        dattmp.columns = [str(i) for i in dattmp.columns] # Ensures the patient ids are strings
         dattmp.name = path.split('.')[0].split('_')[-1] #Assumes there is no '.' in file name as per specified naming convention. Can lead to erros down stream. Files should be modality_datEXpr.csv e.g. mRNA_datExpr.csv
         datModalities[dattmp.name] = dattmp
 
@@ -81,6 +89,8 @@ def main(args):
 
     print(skf)
 
+    print(meta.head())
+    print(nx.get_node_attributes(G , 'idx'))
     node_subjects = meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))].reset_index(drop=True)
     node_subjects.name = args.target
 
@@ -191,9 +201,11 @@ def main(args):
         output_file = args.output + '/' + "confusion_matrix.png"
         plt.savefig(output_file , dpi = 300)
 
-        tsne_plot = GNN.transform_plot(gcn , output_generator[best_model] , node_subjects , TSNE)
+        tsne_plot , GNN_embeddings = GNN.transform_plot(gcn , output_generator[best_model] , node_subjects , pd.Series(nx.get_node_attributes(G , 'idx')).values , TSNE)
         output_file = args.output + '/' + "transform.png"
         tsne_plot.savefig(output_file , dpi = 300)
+        output_file = args.output + '/' + "GNN_embeddings.csv"
+        GNN_embeddings.to_csv(output_file)
         
         precision_recall_plot , all_predictions_conf = GNN.gnn_precision_recall(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
         output_file = args.output + '/' + "precision_recall.png"
