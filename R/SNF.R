@@ -1,23 +1,23 @@
 library(SNFtool)
-library(ANF)
 library(igraph)
 library(data.table)
-source('~/MOGDx/R/preprocess_functions.R')
+source('~/Year2/MOGDx/R/preprocess_functions.R')
 
-setwd('~/MOGDx/')
+setwd('~/Year2/MOGDx/')
 
-project <- 'BRCA'
-trait <- 'paper_BRCA_Subtype_PAM50'
-mod_list <- c('mRNA','miRNA' , 'DNAm' , 'CNV' , 'RPPA')
+project <- 'PPMI'
+trait <- c('CONCOHORT_DEFINITION')
+TimeStep <- 'V08'
+mod_list <- c( 'Parkinsonism' , 'MDS-UPDRS' , 'DNAm' , 'mRNA' , 'miRNA' )
 
-colnames <- c('patient' ,  'race' , 'gender' , 'sample_type' , trait)
+colnames <- c('PATNO' ,  'race' , 'GENDER' , 'AGE_AT_VISIT' , trait)
 datMeta <- t(data.frame( row.names = colnames))
 for (mod in mod_list) {
   print(mod)
-  datMeta <- rbind(datMeta , read.csv(paste0('./data/TCGA-',project,'/',mod,'/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
+  datMeta <- rbind(datMeta , read.csv(paste0('./data/',project,'/raw/All_5mod/',TimeStep,'/output/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
 }
 datMeta <- datMeta[!(duplicated(datMeta)),]
-dim(datMeta)
+print(dim(datMeta))
 
 all_idx <- c()
 g_list <- list()
@@ -59,10 +59,10 @@ T = 10; 	# Number of Iterations, usually (10~20)
 W = SNF(adjacency_graphs, K , T)
 W <- W - diag(0.5 , dim(W)[1]) 
 
-g <- snf.to.graph(W , datMeta , trait , all_idx , 0.96)
+g <- snf.to.graph(W , datMeta , trait , all_idx , 0.95)
 
-length(V(g))
-write.csv(as_long_data_frame(g) , file = './Network/SNF/graph.csv')
+print(length(V(g)))
+write.csv(as_long_data_frame(g) , file = paste0('./data/',project,'/raw/All_5mod/',TimeStep,'/output/graph.csv'))
 #write.csv(as_long_data_frame(g) , 
 #          file = paste0('./Network/modality_expts/',project,'/',length(mod_list),'/',paste0(mod_list , collapse = '_'),'_graph.csv'))
 

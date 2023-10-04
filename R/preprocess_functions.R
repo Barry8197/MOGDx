@@ -135,9 +135,16 @@ make.knn.graph<-function(D,k){
   for (i in 1:nrow(dist)){
     # find closes neighbours
     matches <- setdiff(order(dist[i,],decreasing = F)[1:(k+1)],i)
+    if (length(matches) > k) {
+      edges <- rbind(edges,cbind(rep(i,length(matches)),matches))
+      #edges <- rbind(edges,cbind(matches,rep(i,length(matches))))
+    } else {
+      edges <- rbind(edges,cbind(rep(i,k),matches))
+      #edges <- rbind(edges,cbind(matches,rep(i,k)))
+    }
     # add edges in both directions
-    edges <- rbind(edges,cbind(rep(i,k),matches))  
-    edges <- rbind(edges,cbind(matches,rep(i,k)))  
+    
+    #edges <- rbind(edges,cbind(matches,rep(i,k)))  
   }
   # create a graph from the edgelist
   graph <- graph_from_edgelist(edges,directed=F)
@@ -156,10 +163,16 @@ expr.to.graph<-function(datExpr , datMeta , trait , top_genes , modality){
     mat <- t(datExpr[ , top_genes[[trait]]])
   }
   
-  mat <- mat - rowMeans(mat)
-  corr_mat <- as.matrix(as.dist(cor(mat, method="pearson")))
-  heatmap(corr_mat)
+  if (modality %in% c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CSF')) {
+    mat <- mat - rowMeans(mat)
+    corr_mat <- cor(mat, method="pearson")
+    heatmap(corr_mat)
+  } else {
+    corr_mat <- t(mat)
+    heatmap(as.matrix(as.dist(corr_mat)))
+  }
   
+  print(dim(mat))
   g <- make.knn.graph(corr_mat , 15)
   
   plot.igraph(g$graph,layout=g$layout, vertex.frame.color='black', vertex.color=as.numeric(as.factor(datMeta[[trait]])),
