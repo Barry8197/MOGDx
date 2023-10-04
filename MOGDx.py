@@ -39,23 +39,19 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
 
     meta = meta[~meta.index.duplicated(keep='first')] # Remove duplicated entries
     meta.index = [str(i) for i in meta.index] # Ensures the patient ids are strings
-    print(meta.head())
 
     TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in sorted(os.listdir(DATA_PATH)) if 'expr' in i.lower()] # Looks for all expr file names
 
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
-        print(path)
+        print('Importing \t %s \n' % path) 
         dattmp = pd.read_csv(path , index_col=0)
         
         if len(set(meta.index) & set(dattmp.columns)) > 0 :
             pass
-            print('not transposed')
         else :
             dattmp = dattmp.T
-            print('transposed')
 
-        print(dattmp.head())
         dattmp.columns = [str(i) for i in dattmp.columns] # Ensures the patient ids are strings
         dattmp.name = path.split('.')[0].split('_')[-1] #Assumes there is no '.' in file name as per specified naming convention. Can lead to erros down stream. Files should be modality_datEXpr.csv e.g. mRNA_datExpr.csv
         datModalities[dattmp.name] = dattmp
@@ -82,8 +78,6 @@ def main(args):
 
     print(skf)
 
-    print(meta.head())
-    print(nx.get_node_attributes(G , 'idx'))
     node_subjects = meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))].reset_index(drop=True)
     node_subjects.name = args.target
 

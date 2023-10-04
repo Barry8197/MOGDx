@@ -64,7 +64,7 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
     ae_losses = []
     for data , latent_dim in zip(TRAIN_DATA , LATENT_DIM) :           
         
-        if device == 'cuda' :
+        if str(device) == 'cuda' :
             '''
             Check GPU memory storage and print available RAM
             '''

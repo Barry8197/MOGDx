@@ -39,7 +39,6 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
     model = tf.keras.Model(inputs=x_inp, outputs=predictions)
 
     print(graph.info())
-
     # Specify model and parameters. Categorical Crossentropy used as it is a classification
     # task
     model = Model(inputs=x_inp, outputs=predictions)
