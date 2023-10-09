@@ -8,6 +8,8 @@ import sklearn as sk
 from sklearn.metrics import precision_recall_curve , average_precision_score , recall_score ,  PrecisionRecallDisplay
 from sklearn.preprocessing import label_binarize
 from itertools import cycle
+import seaborn as sns
+from palettable.wesanderson import Darjeeling2_5
 
 def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , gnn_layers , layer_activation , learning_rate , mlb , split_val) :
     '''
@@ -115,37 +117,34 @@ def transform_plot(model , generator , subjects, embed_index , transform ) :
     This function generates a TSNE plot of the latent node embeddings 
     learnt by the GNN model implemented
     '''
-    
-    # Get embeddings from model
-    x_inp, x_out = model.in_out_tensors()
-    embedding_model = Model(inputs=x_inp, outputs=x_out)
-    
     all_nodes = subjects.index
     all_gen = generator.flow(all_nodes)
-    emb = embedding_model.predict(all_gen)
+    emb = model.predict(all_gen)
 
     X = emb.squeeze(0)
     
     trans = transform(n_components=2 , init='pca' , learning_rate='auto')
     X_reduced = trans.fit_transform(X)
 
+    df = pd.DataFrame({'Dimension 1': X_reduced[:, 0], 'Dimension 2': X_reduced[:, 1], 'Label': subjects})
+    
     X = pd.DataFrame(X , index = embed_index)
 
     fig, ax = plt.subplots(figsize=(14, 10))
-    scatter = plt.scatter(
-                X_reduced[:, 0],
-                X_reduced[:, 1],
-                c=subjects.astype("category").cat.codes,
-                cmap="jet",
-                alpha=0.7,
-            ) ;
+    # Set the style for the plot (optional)
+    sns.set(style='whitegrid')
 
-    ax.set(
-        aspect="equal",
-        xlabel="$X_1$",
-        ylabel="$X_2$",
-        title=f"{transform.__name__} visualization of GCN embeddings for BRCA dataset",
-    )
+    # Create the scatter plot
+    cpal = sns.color_palette(Darjeeling2_5.mpl_colors, n_colors=len(subjects.unique()), desat=1)
+    sns.scatterplot(x='Dimension 1', y='Dimension 2', hue='Label', data=df, palette=cpal, legend='full')
+
+    # Add a legend
+    plt.legend(title='Labels', loc='upper right')
+
+    # Set plot title and labels
+    plt.title(f"{transform.__name__} visualization of GCN embeddings")
+    plt.xlabel('$X_1$')
+    plt.ylabel('$X_2$')
     
     return fig , X
 

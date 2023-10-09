@@ -22,9 +22,9 @@ warnings.filterwarnings("ignore")
 mlb = MultiLabelBinarizer()
 
 print("Finished Library Import \n")
-def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
+def data_parsing(DATA_PATH , GRAPH_FILE ,TARGET , INDEX_COL) :
     
-    META_DATA_PATH = [DATA_PATH + '/' + i for i in os.listdir(DATA_PATH) if 'meta' in i.lower()]
+    META_DATA_PATH = ['raw' + '/' + i for i in os.listdir('raw') if ('meta' in i.lower()) & (i[8:-4] in GRAPH_FILE)]
 
     meta = pd.Series(dtype=str)
     for path in META_DATA_PATH : 
@@ -40,8 +40,7 @@ def data_parsing(DATA_PATH , TARGET , INDEX_COL) :
     meta = meta[~meta.index.duplicated(keep='first')] # Remove duplicated entries
     meta.index = [str(i) for i in meta.index] # Ensures the patient ids are strings
 
-    TRAIN_DATA_PATH = [DATA_PATH + '/' + i for i in sorted(os.listdir(DATA_PATH)) if 'expr' in i.lower()] # Looks for all expr file names
-
+    TRAIN_DATA_PATH = META_DATA_PATH = ['raw' + '/' + i for i in os.listdir('raw') if ('expr' in i.lower()) & (i[8:-4] in GRAPH_FILE)] # Looks for all expr file names
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
         print('Importing \t %s \n' % path) 
@@ -66,7 +65,7 @@ def main(args):
     device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
     print("Using %s device" % device)
 
-    datModalities , meta = data_parsing(args.input , args.target , args.index_col)
+    datModalities , meta = data_parsing(args.input , args.snf_net , args.target , args.index_col)
 
     graph_file = args.input + '/' + args.snf_net
     G = Network.network_from_csv(graph_file , args.no_psn)
@@ -165,7 +164,7 @@ def main(args):
         output_file = args.output + '/' + "confusion_matrix.png"
         plt.savefig(output_file , dpi = 300)
 
-        tsne_plot , GNN_embeddings = GNN.transform_plot(gcn , output_generator[best_model] , node_subjects , pd.Series(nx.get_node_attributes(G , 'idx')).values , TSNE)
+        tsne_plot , GNN_embeddings = GNN.transform_plot(output_model[best_model] , output_generator[best_model] , node_subjects , pd.Series(nx.get_node_attributes(G , 'idx')).values , TSNE)
         output_file = args.output + '/' + "transform.png"
         tsne_plot.savefig(output_file , dpi = 300)
         output_file = args.output + '/' + "GNN_embeddings.csv"

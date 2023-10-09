@@ -5,28 +5,24 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-def scale_datasets(x_train, x_test , x_val):
+def scale_datasets(*args):
     """
     Standard Scale train, test and validation data splits
     """
-    standard_scaler = StandardScaler()
-    x_train_scaled = pd.DataFrame(
-      standard_scaler.fit_transform(x_train),
-      columns = x_train.columns,
-      index=x_train.index
-    )
-    x_test_scaled = pd.DataFrame(
-      standard_scaler.transform(x_test),
-      columns = x_test.columns,
-      index = x_test.index
-    )
-    x_val_scaled = pd.DataFrame(
-      standard_scaler.transform(x_val),
-      columns = x_val.columns,
-      index = x_val.index
-    )
-    return x_train_scaled, x_test_scaled , x_val_scaled
+    scaled_data = {}
+    i = 0
+    for arg in args :
+        i += 1
 
+        standard_scaler = StandardScaler()
+        data_scaled = pd.DataFrame(
+          standard_scaler.fit_transform(arg),
+          columns = arg.columns,
+          index=arg.index
+        )
+        scaled_data[f'x_{i}'] = data_scaled
+
+    return scaled_data
 
 # Creating a PyTorch class
 class AE(torch.nn.Module):
@@ -89,7 +85,10 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
         '''
         Scale data for training
         '''
-        X_train, X_test , X_val = scale_datasets(x_train, x_test, x_val)    
+        scaled_data = scale_datasets(x_train, x_test, x_val)    
+        X_train = scaled_data['x_1']
+        X_test  = scaled_data['x_2']
+        X_val   = scaled_data['x_3']
         
         auto_encoder = AE(latent_dim=latent_dim , inputs=len(X_train.columns))
         # Move model to GPU
