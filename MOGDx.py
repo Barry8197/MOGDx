@@ -16,6 +16,7 @@ from palettable.wesanderson import Darjeeling2_5
 from sklearn.manifold import TSNE
 from sklearn import preprocessing
 from matplotlib.lines import Line2D
+import joblib
 import warnings
 warnings.filterwarnings("ignore")
 mlb = MultiLabelBinarizer()
@@ -164,6 +165,8 @@ def main(args):
 
     print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
 
+    joblib.dump(mlb, args.output + '/multilabel_binarizer.pkl')
+    
     best_model = np.where(accuracy == np.max(accuracy))[0][-1]
     output_file = args.output + '/' + "best_model"
     output_model[best_model].save(output_file)
@@ -177,7 +180,6 @@ def main(args):
             'loss_fn': loss_model_all[best_model][data],
             'scaled_mean' : scaled_param_mean[best_model],
             'scaled_std' :  scaled_param_std[best_model],
-            'mlb_transform' : mlb.classes_
             # You can add more information to save, such as training history, hyperparameters, etc.
         }, f'{save_path}AE_model_{data}' )
         
@@ -204,9 +206,7 @@ def main(args):
 
         node_predictions = [i[0] for i in node_predictions]
 
-        pred_df = pd.DataFrame(meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))] , columns=['Actual'])
-        pred_df['Prediction'] = node_predictions
-        pred_df.to_csv(args.output + '/Predictions.csv')
+        pd.DataFrame({'Actual' : meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))] , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
 
 def construct_parser():
     # Training settings
