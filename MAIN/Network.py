@@ -59,7 +59,7 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , learning
     test_subjects_idx  = [G_idx_link.get(key) for key in test_index]
 
     # Train the autoencoder and extract the hidden dimension
-    reduced_df , ae_losses = AE.train(TRAIN_DATA, LATENT_DIM , epochs , learning_rate , train_subjects_idx , test_subjects_idx , val_subjects_idx , device , split_val)
+    reduced_df , ae_losses , auto_encoder_model , loss_model , optimizer_model , scaled_mean , scaled_std = AE.train(TRAIN_DATA, LATENT_DIM , epochs , learning_rate , train_subjects_idx , test_subjects_idx , val_subjects_idx , device , split_val)
 
     # Join the train, test and validation splits for each data modality
     node_features = AE.combine_embeddings(reduced_df)
@@ -67,4 +67,4 @@ def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , learning
     # Augment Graph with Node Features
     node_features = node_features.reindex([i[1]['idx'] for i in G.nodes(data=True)])
 
-    return node_features , ae_losses
+    return node_features , ae_losses , auto_encoder_model , loss_model , optimizer_model , scaled_mean , scaled_std

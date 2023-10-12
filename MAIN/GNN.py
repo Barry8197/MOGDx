@@ -38,12 +38,11 @@ def gnn_train_test(G , train_subjects , val_subjects , test_subjects , epochs , 
     predictions = layers.Dense(units=train_targets.shape[1], activation="softmax")(x_out)
 
     # use the input and output tensors to create a TensorFlow Keras model
-    model = tf.keras.Model(inputs=x_inp, outputs=predictions)
+    model = Model(inputs=x_inp, outputs=predictions)
 
     print(graph.info())
     # Specify model and parameters. Categorical Crossentropy used as it is a classification
     # task
-    model = Model(inputs=x_inp, outputs=predictions)
     model.compile(
         optimizer=optimizers.Adam(learning_rate=learning_rate),
         loss=losses.categorical_crossentropy,
@@ -119,8 +118,10 @@ def transform_plot(model , generator , subjects, embed_index , transform ) :
     '''
     all_nodes = subjects.index
     all_gen = generator.flow(all_nodes)
-    emb = model.predict(all_gen)
-
+    
+    embedding_model = tf.keras.Model(inputs=model.input, outputs=model.layers[-2].output)
+    emb = embedding_model.predict(all_gen)
+    
     X = emb.squeeze(0)
     
     trans = transform(n_components=2 , init='pca' , learning_rate='auto')
@@ -146,7 +147,7 @@ def transform_plot(model , generator , subjects, embed_index , transform ) :
     plt.xlabel('$X_1$')
     plt.ylabel('$X_2$')
     
-    return fig , X
+    return fig , X 
 
 def gnn_confusion_matrix(model , generator , subjects , mlb) :
 

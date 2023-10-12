@@ -13,7 +13,6 @@ from sklearn.model_selection import StratifiedKFold , train_test_split
 from sklearn.preprocessing import MultiLabelBinarizer
 import numpy as np
 from palettable.wesanderson import Darjeeling2_5
-from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn import preprocessing
 from matplotlib.lines import Line2D
@@ -24,7 +23,7 @@ mlb = MultiLabelBinarizer()
 print("Finished Library Import \n")
 def data_parsing(DATA_PATH , GRAPH_FILE ,TARGET , INDEX_COL) :
     
-    META_DATA_PATH = ['raw' + '/' + i for i in os.listdir('raw') if ('meta' in i.lower()) & (i[8:-4] in GRAPH_FILE)]
+    META_DATA_PATH = [f'{DATA_PATH}/datMeta_{mod}.csv' for mod in GRAPH_FILE[:-4].split('_')[1:-1]]
 
     meta = pd.Series(dtype=str)
     for path in META_DATA_PATH : 
@@ -40,7 +39,7 @@ def data_parsing(DATA_PATH , GRAPH_FILE ,TARGET , INDEX_COL) :
     meta = meta[~meta.index.duplicated(keep='first')] # Remove duplicated entries
     meta.index = [str(i) for i in meta.index] # Ensures the patient ids are strings
 
-    TRAIN_DATA_PATH = META_DATA_PATH = ['raw' + '/' + i for i in os.listdir('raw') if ('expr' in i.lower()) & (i[8:-4] in GRAPH_FILE)] # Looks for all expr file names
+    TRAIN_DATA_PATH = [f'{DATA_PATH}/datExpr_{mod}.csv' for mod in GRAPH_FILE[:-4].split('_')[1:-1]] # Looks for all expr file names
     datModalities = {}
     for path in TRAIN_DATA_PATH : 
         print('Importing \t %s \n' % path) 
@@ -80,13 +79,18 @@ def main(args):
     node_subjects = meta.loc[pd.Series(nx.get_node_attributes(G , 'idx'))].reset_index(drop=True)
     node_subjects.name = args.target
 
-    output_test      = []
-    output_model     = []
-    output_generator = []
-    output_metrics   = []
+    output_test            = []
+    output_model           = []
+    output_generator       = []
+    output_metrics         = []
+    auto_encoder_model_all = []
+    loss_model_all         = []
+    optimizer_model_all    = []
+    scaled_param_mean      = []
+    scaled_param_std       = []
 
     mlb.fit_transform(meta.values.reshape(-1,1))
-
+    
     for i, (train_index, test_index) in enumerate(skf.split(node_subjects.index, node_subjects)):
         
         train_index, val_index = train_test_split(
@@ -105,7 +109,14 @@ def main(args):
             nx.set_node_attributes(G , pd.Series(list(proxy_node_features) , index=G.nodes()) , 'node_features')
             ae_losses = []
         else :
-            node_features , ae_losses = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
+            node_features , ae_losses , auto_encoder_model , loss_model , optimizer_model , scaled_mean , scaled_std = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
+            
+            auto_encoder_model_all.append(auto_encoder_model)
+            loss_model_all.append(loss_model)
+            optimizer_model_all.append(optimizer_model)
+            scaled_param_mean.append(scaled_mean)
+            scaled_param_std.append(scaled_std)
+            
             nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
 
         test_metrics , model , generator , gcn , model_history = GNN.gnn_train_test(G , train_subjects , val_subjects , test_subjects , args.epochs , args.layers , args.layer_activation , args.lr , mlb , args.split_val)
@@ -156,6 +167,20 @@ def main(args):
     best_model = np.where(accuracy == np.max(accuracy))[0][-1]
     output_file = args.output + '/' + "best_model"
     output_model[best_model].save(output_file)
+    
+    save_path = args.output + '/AE_models/'
+    os.makedirs(save_path, exist_ok=True)
+    for data in (auto_encoder_model_all[best_model].keys()):
+        torch.save({
+            'model_state_dict': auto_encoder_model_all[best_model][data].state_dict(),
+            'optimizer_state_dict': optimizer_model_all[best_model][data].state_dict(),
+            'loss_fn': loss_model_all[best_model][data],
+            'scaled_mean' : scaled_param_mean[best_model],
+            'scaled_std' :  scaled_param_std[best_model],
+            'mlb_transform' : mlb.classes_
+            # You can add more information to save, such as training history, hyperparameters, etc.
+        }, f'{save_path}AE_model_{data}' )
+        
 
     if args.no_output_plots : 
         cmplt , pred = GNN.gnn_confusion_matrix(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
@@ -167,8 +192,6 @@ def main(args):
         tsne_plot , GNN_embeddings = GNN.transform_plot(output_model[best_model] , output_generator[best_model] , node_subjects , pd.Series(nx.get_node_attributes(G , 'idx')).values , TSNE)
         output_file = args.output + '/' + "transform.png"
         tsne_plot.savefig(output_file , dpi = 300)
-        output_file = args.output + '/' + "GNN_embeddings.csv"
-        GNN_embeddings.to_csv(output_file)
         
         precision_recall_plot , all_predictions_conf = GNN.gnn_precision_recall(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
         output_file = args.output + '/' + "precision_recall.png"

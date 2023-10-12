@@ -5,7 +5,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
-def scale_datasets(*args):
+def scale_datasets(*args , mean , std):
     """
     Standard Scale train, test and validation data splits
     """
@@ -13,14 +13,29 @@ def scale_datasets(*args):
     i = 0
     for arg in args :
         i += 1
-
-        standard_scaler = StandardScaler()
-        data_scaled = pd.DataFrame(
-          standard_scaler.fit_transform(arg),
-          columns = arg.columns,
-          index=arg.index
-        )
+        
+        if (len(mean) == 0) & (len(std) == 0) : 
+            standard_scaler = StandardScaler()
+            
+            data_scaled = pd.DataFrame(
+                standard_scaler.fit_transform(arg),
+                columns = arg.columns,
+                index=arg.index
+            )
+        else :
+            standard_scaler = StandardScaler(with_mean = False , with_std = False)
+            standard_scaler.mean_  = mean
+            standard_scaler.scale_ = std
+            
+            data_scaled = pd.DataFrame(
+                standard_scaler.transform(arg),
+                columns = arg.columns,
+                index=arg.index
+            )
+            
         scaled_data[f'x_{i}'] = data_scaled
+        scaled_data[f'x_{i}_mean'] = standard_scaler.mean_
+        scaled_data[f'x_{i}_std']  = standard_scaler.scale_
 
     return scaled_data
 
@@ -58,6 +73,9 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
     Iterate over each data modality training one autencoder per modality
     '''
     ae_losses = []
+    auto_encoder_model = {}
+    loss_model = {}
+    optimizer_model = {}
     for data , latent_dim in zip(TRAIN_DATA , LATENT_DIM) :           
         
         if str(device) == 'cuda' :
@@ -85,8 +103,10 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
         '''
         Scale data for training
         '''
-        scaled_data = scale_datasets(x_train, x_test, x_val)    
+        scaled_data = scale_datasets(x_train, x_test, x_val , mean = [] , std = [])    
         X_train = scaled_data['x_1']
+        scaled_mean = scaled_data['x_1_mean'] 
+        scaled_std = scaled_data['x_1_std']
         X_test  = scaled_data['x_2']
         X_val   = scaled_data['x_3']
         
@@ -147,7 +167,7 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
         reduced_test  = pd.DataFrame(auto_encoder.forward(torch.tensor(X_test.to_numpy() , dtype=torch.float , device=device))[0].cpu().detach().numpy() , index=test_idx_filt)
         reduced_val   = pd.DataFrame(auto_encoder.forward(torch.tensor(X_val.to_numpy() , dtype=torch.float , device=device))[0].cpu().detach().numpy() , index=val_idx_filt)
         
-        feature_prefix = 'data_' + str(i+1) + '_feature_'
+        feature_prefix = 'data_' + data.name + '_feature_'
         reduced_train = reduced_train.add_prefix(feature_prefix)
         reduced_test  = reduced_test.add_prefix(feature_prefix)
         reduced_val   = reduced_val.add_prefix(feature_prefix)
@@ -160,12 +180,15 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
         
         i += 1
         
+        ae_losses.append(losses)
+        auto_encoder_model[data.name] = auto_encoder 
+        loss_model[data.name] = loss
+        optimizer_model[data.name] = optimizer
+        
         del omic , auto_encoder
         torch.cuda.empty_cache()
-        
-        ae_losses.append(losses)
     
-    return reduced_df , ae_losses
+    return reduced_df , ae_losses , auto_encoder_model , loss_model , optimizer_model , scaled_mean , scaled_std
 
 def combine_embeddings(reduced_df) : 
     joined_df = {}
