@@ -85,11 +85,7 @@ def main(args):
     output_generator       = []
     output_metrics         = []
     auto_encoder_model_all = []
-    loss_model_all         = []
-    optimizer_model_all    = []
-    scaled_param_mean      = []
-    scaled_param_std       = []
-
+    
     mlb.fit_transform(meta.values.reshape(-1,1))
     
     for i, (train_index, test_index) in enumerate(skf.split(node_subjects.index, node_subjects)):
@@ -110,13 +106,9 @@ def main(args):
             nx.set_node_attributes(G , pd.Series(list(proxy_node_features) , index=G.nodes()) , 'node_features')
             ae_losses = []
         else :
-            node_features , ae_losses , auto_encoder_model , loss_model , optimizer_model , scaled_mean , scaled_std = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
+            node_features , ae_losses , auto_encoder_model = Network.node_feature_augmentation(G , datModalities , args.latent_dim , args.epochs , args.lr , train_index , val_index , test_index , device , args.split_val)
             
             auto_encoder_model_all.append(auto_encoder_model)
-            loss_model_all.append(loss_model)
-            optimizer_model_all.append(optimizer_model)
-            scaled_param_mean.append(scaled_mean)
-            scaled_param_std.append(scaled_std)
             
             nx.set_node_attributes(G , pd.Series(node_features.values.tolist() , index= [i[0] for i in G.nodes(data=True)]) , 'node_features')
 
@@ -176,13 +168,8 @@ def main(args):
     for data in (auto_encoder_model_all[best_model].keys()):
         torch.save({
             'model_state_dict': auto_encoder_model_all[best_model][data].state_dict(),
-            'optimizer_state_dict': optimizer_model_all[best_model][data].state_dict(),
-            'loss_fn': loss_model_all[best_model][data],
-            'scaled_mean' : scaled_param_mean[best_model],
-            'scaled_std' :  scaled_param_std[best_model],
             # You can add more information to save, such as training history, hyperparameters, etc.
         }, f'{save_path}AE_model_{data}' )
-        
 
     if args.no_output_plots : 
         cmplt , pred = GNN.gnn_confusion_matrix(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
@@ -194,6 +181,7 @@ def main(args):
         tsne_plot , GNN_embeddings = GNN.transform_plot(output_model[best_model] , output_generator[best_model] , node_subjects , pd.Series(nx.get_node_attributes(G , 'idx')).values , TSNE)
         output_file = args.output + '/' + "transform.png"
         tsne_plot.savefig(output_file , dpi = 300)
+        GNN_embeddings.to_csv(args.output+'/GNN_embeddings.csv')
         
         precision_recall_plot , all_predictions_conf = GNN.gnn_precision_recall(output_model[best_model] , output_generator[best_model] , node_subjects , mlb)
         output_file = args.output + '/' + "precision_recall.png"

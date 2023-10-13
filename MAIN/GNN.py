@@ -159,6 +159,7 @@ def gnn_confusion_matrix(model , generator , subjects , mlb) :
     all_predictions = []
     for pred , max_pred in zip(all_preds_conf , np.max(all_preds_conf, axis=1)) : 
         all_predictions.append(list(pred == max_pred))
+        
     node_predictions = mlb.inverse_transform(np.array(all_predictions))
 
     cm = sk.metrics.confusion_matrix(subjects , node_predictions)
