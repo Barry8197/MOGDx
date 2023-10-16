@@ -89,7 +89,7 @@ def train(TRAIN_DATA , LATENT_DIM , epochs , learning_rate , train_subjects , te
         '''
         Scale data for training
         '''
-        scaled_data = scale_datasets(x_train, x_test, x_val , mean = [] , std = [])    
+        scaled_data = scale_datasets(x_train, x_test, x_val)    
         X_train = scaled_data['x_1']
         X_test  = scaled_data['x_2']
         X_val   = scaled_data['x_3']
