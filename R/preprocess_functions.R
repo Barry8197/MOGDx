@@ -70,11 +70,11 @@ diff_expr <- function(count_mtx , datMeta , trait , n_genes , modality) {
   netsummary = fundamentalNetworkConcepts(absadj)
   ku = netsummary$Connectivity
   z.ku = (ku-mean(ku))/sqrt(var(ku))
-  
+
   to_keep = z.ku > -2
   print(paste0("Keeping ",sum(to_keep)," Samples"))
   print(paste0("Removed ",length(to_keep) - sum(to_keep), " Samples"))
-        
+
   count_mtx <- count_mtx[,to_keep] #removed 36
   datMeta <- datMeta[to_keep,]
   
@@ -166,17 +166,17 @@ expr.to.graph<-function(datExpr , datMeta , trait , top_genes , modality){
   if (modality %in% c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CSF')) {
     mat <- mat - rowMeans(mat)
     corr_mat <- cor(mat, method="pearson")
-    heatmap(corr_mat)
+    #heatmap(corr_mat)
   } else {
     corr_mat <- t(mat)
-    heatmap(as.matrix(as.dist(corr_mat)))
+    #heatmap(as.matrix(as.dist(corr_mat)))
   }
   
   print(dim(mat))
   g <- make.knn.graph(corr_mat , 15)
   
-  plot.igraph(g$graph,layout=g$layout, vertex.frame.color='black', vertex.color=as.numeric(as.factor(datMeta[[trait]])),
-              vertex.size=5,vertex.label=NA,main=modality )
+  plot.igraph(g$graph,layout=g$layout, vertex.frame.color='black', vertex.color=as.factor(datMeta[[trait]]),
+              vertex.size=5,vertex.label=NA, vertex.label.cex = 0.3 , main=modality )
   
   g <- g$graph
   g <- simplify(g, remove.multiple=TRUE, remove.loops=TRUE)
@@ -193,7 +193,29 @@ expr.to.graph<-function(datExpr , datMeta , trait , top_genes , modality){
   return(as_long_data_frame(g))
 }
 
-snf.to.graph <- function(W , datMeta , trait , idx , thresh) {
+snf.to.graph <- function(W , datMeta , trait , idx , sub_mod_list) {
+  
+  g <- make.knn.graph(W , 15)
+  
+  plot.igraph(g$graph,layout=g$layout, vertex.frame.color='black', vertex.color=as.numeric(as.factor(datMeta[idx,][[trait]])),
+              vertex.size=5,vertex.label=NA,main=paste0(sub_mod_list , collapse = '_'))
+  
+  g <- g$graph
+  g <- simplify(g, remove.multiple=TRUE, remove.loops=TRUE)
+  
+  # Remove any vertices remaining that have no edges
+  g <- delete.vertices(g, degree(g)==0)
+  
+  # Assign names to the graph vertices 
+  V(g)$name <- rownames(datMeta[idx,])
+  V(g)$class <- as.character(datMeta[idx,][[trait]])
+  V(g)$color <- as.numeric(as.factor(V(g)$class))
+  V(g)$vertex.frame.color <- "black"
+  
+  return(g)
+}
+
+snf.to.graph2 <- function(W , datMeta , trait , idx , thresh) {
   
   g <- graph.adjacency(
     W,

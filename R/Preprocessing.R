@@ -6,6 +6,8 @@ library(tibble)
 library(pheatmap)
 library(SummarizedExperiment)
 library(dplyr)
+library(wateRmelon)
+library(minfi)
 
 source('~/Year2/MOGDx/R/preprocess_functions.R')
 
@@ -13,16 +15,24 @@ setwd('~/Year2/MOGDx/')
 
 project <- 'PPMI'
 trait <- 'CONCOHORT_DEFINITION'
-TimeStep = 'V08'
+TimeStep = 'V02'
+
+ALL <- c('Hyposmia' , '' , 'Sporadic' , 'RBD' , 'RBD/Hyposmia' , 'Genetic')
+nonGenetic <- c('Hyposmia' , '' , 'Sporadic' , 'RBD' , 'RBD/Hyposmia')
+Genetic <- c('' , 'Genetic')
   
 # -------------------------------------------------------------------------
 # META File Generation ----------------------------------------------------
 # -------------------------------------------------------------------------
 
+common_idx <- read.csv('data/PPMI/raw/Com_Tmpt/V02_common_idx.csv')$
+
 # The meta data is coded into the head folder of the project
 
 meta <- read.csv(paste0('./data/',project,'/datMeta.csv'))
-meta <- meta %>% filter(EVENT_ID == TimeStep)
+meta <- meta %>% filter(EVENT_ID == TimeStep) %>% filter(!((CONCOHORT_DEFINITION %in% c('Prodromal' , "Parkinson's Disease")) & (Subgroup == '')))
+meta <- meta %>% filter(PATNO %in% common_idx$PATNO)
+print(dim(meta))
 write.csv(meta , file = paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv'))
 
 # # MDS-UPDRS Score Inclusion -----------------------------------------------
@@ -99,7 +109,7 @@ count_mtx <- count_mtx[, !(duplicated(colnames(count_mtx)))]
 
 # Pull in Meta File
 datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
 datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -130,7 +140,7 @@ data <- read.csv(paste0('./data/',project,'/',TimeStep,'/miRNA/miRNA_',TimeStep,
 
 # Pull in Meta File
 datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
 datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -184,8 +194,7 @@ count_mtx <- count_mtx[ , top_cpg_indices]
 
 # Pull in Meta File
 datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
-datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
 datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -227,7 +236,7 @@ for (res in traitResults) {
 datExpr <- count_mtx
 
 save(cpg_sites , datExpr , datMeta , file = paste0('~/Year2/MOGDx/data/',project,'/',TimeStep,'/DNAm/DNAm_processed.RData'))
-rm(datExpr , datMeta , dds , cpg_sites , data , count_mtx)
+rm(datExpr , datMeta  , cpg_sites , data , count_mtx)
 
 # ----------------------------------------------------------------------------------------
 # Protein (RPPA) pre-processing ----------------------------------------------------------
@@ -340,7 +349,6 @@ rm(datExpr , datMeta , dds , cpg_sites , data , count_mtx)
 # -------------------------------------------------------------------------
 # CSF Biomarkers ----------------------------------------------------------
 # -------------------------------------------------------------------------
-
 # Read in Count Matrix
 data <- read.csv(paste0('data/',project,'/',TimeStep,'/CSF/CSF_',TimeStep,'.csv') , row.names = 1 , check.names = FALSE)
 
@@ -354,7 +362,7 @@ count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove c
 
 # Pull in Meta File
 datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
 datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -370,7 +378,7 @@ datMeta <- datMeta[common_idx , ]
 count_mtx[is.na(count_mtx)] <- 0 
 
 # Perform log transform on count matrix to give normal distribution resemblance
-count_mtx_log <- log(count_mtx)
+#count_mtx_log <- log(count_mtx)
 
 # Run glmnet R2 regression to get CNV's of interest
 trait <- "CONCOHORT_DEFINITION"
@@ -383,7 +391,6 @@ traitResults <- lapply(traits, function(trait) {
 })
 
 csf_sites <- c()
-csf_sites[[trait]] <- colnames(count_mtx)
 for (res in traitResults) { 
   trait_coefs <- coef(res$model , s = "lambda.min")
   csf_sites_tmp <- c()
@@ -397,12 +404,16 @@ for (res in traitResults) {
   csf_sites[[res$trait]] <- csf_sites_tmp
 }
 
-rm(count_mtx_log)
+# Code to handle the error here
+csf_sites <- c()
+csf_sites[[trait]] <- colnames(count_mtx)
 
+# Code to execute whether there's an error or not
 # Save CNV's and expression
 datExpr <- count_mtx
 save(csf_sites , datExpr , datMeta , file = paste0('~/Year2/MOGDx/data/',project,'/',TimeStep,'/CSF/CSF_processed.RData'))
 rm(datExpr , datMeta , csf_sites , data , count_mtx)
+
 
 # -------------------------------------------------------------------------
 # MOCA Non Motor Symptoms -------------------------------------------------
@@ -416,7 +427,7 @@ rm(datExpr , datMeta , csf_sites , data , count_mtx)
 # 
 # # Pull in Meta File
 # datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-# datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
+# datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Hyposmia' , '' , 'Sporadic' , 'RBD' , 'RBD/Hyposmia'))
 # datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 # levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 # datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -471,7 +482,7 @@ count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove c
 
 # Pull in Meta File
 datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
 datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -526,7 +537,7 @@ count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove c
 
 # Pull in Meta File
 datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
 datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -549,7 +560,6 @@ rm(datExpr , datMeta , park_sites , data , count_mtx)
 # -------------------------------------------------------------------------
 # Clinical Descriptor Features --------------------------------------------
 # -------------------------------------------------------------------------
-
 data <- read.csv(paste0('data/',project,'/',TimeStep,'/Clinical/Clinical_',TimeStep,'.csv') , row.names = 1 )
 
 count_mtx <- data
@@ -557,7 +567,7 @@ count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove c
 
 # Pull in Meta File
 datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
-datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% c('Genetic' , ''))
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
 datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
 levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
 datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
@@ -577,4 +587,33 @@ save(clin_sites , datExpr , datMeta , file = paste0('~/Year2/MOGDx/data/',projec
 rm(datExpr , datMeta , clin_sites , data , count_mtx)
 
 
+# -------------------------------------------------------------------------
+# SNP Features ------------------------------------------------------------
+# -------------------------------------------------------------------------
+
+data <- read.csv(paste0('data/',project,'/',TimeStep,'/SNP/SNP_',TimeStep,'.csv') , row.names = 1 )
+
+count_mtx <- data
+count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove columns with more than 50% NA
+
+# Pull in Meta File
+datMeta <- as.data.frame(read.csv(paste0('./data/',project,'/',TimeStep,'/',TimeStep,'_datMeta.csv')))
+datMeta <- datMeta %>% filter(EVENT_ID == TimeStep , CONCOHORT_DEFINITION %in% c('Healthy Control' , "Parkinson's Disease" , 'Prodromal'),Subgroup %in% Genetic)
+datMeta$CONCOHORT_DEFINITION <- as.factor(datMeta$CONCOHORT_DEFINITION)
+levels(datMeta$CONCOHORT_DEFINITION) <- c('HC' , 'PD' , 'PL')
+datMeta <-  datMeta[!(duplicated(datMeta$PATNO)) , ]
+rownames(datMeta) <- as.character(datMeta$PATNO)
+
+#Intersect to common IDs
+count_mtx <- count_mtx[!(duplicated(rownames(count_mtx))) , ] 
+common_idx <- intersect(rownames(count_mtx) , rownames(datMeta))
+count_mtx <- count_mtx[common_idx , ]
+datMeta <- datMeta[common_idx , ]
+
+# Save predictive features and expression
+snp_sites <- c()
+snp_sites[[trait]] <- colnames(count_mtx)
+datExpr <- count_mtx
+save(snp_sites , datExpr , datMeta , file = paste0('~/Year2/MOGDx/data/',project,'/',TimeStep,'/SNP/SNP_processed.RData'))
+rm(datExpr , datMeta , snp_sites , data , count_mtx)
 
