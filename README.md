@@ -93,17 +93,17 @@ e.g. if analysing mRNA & miRNA, ensure mRNA_miRNA_graph.csv , datMeta_mRNA.csv, 
 This process will have been done automatically by the creation of the raw folder and running of SNF.R and it is easiest to retain this folder.
 
 MOGDx is a command line tool. A sample command is : \
-`python MOGDx.py -i "/raw_data/raw_BRCA" -o "./Output/BRCA/"  -snf "graph.csv" --n-splits 5 -ld 32 64 64 32 32 --target "paper_BRCA_Subtype_PAM50" --index-col "patient" --epochs 2500 --lr 0.01 --layer-activation "elu" "elu"  --layers 128 128`
+`python MOGDx.py -i "/raw_data/raw_BRCA" -o "./Output/BRCA/"  -snf "mRNA_miRNA_graph.csv" --n-splits 5 -ld 32 16 --target "paper_BRCA_Subtype_PAM50" --index-col "patient" --epochs 2000 --lr 0.001 --h-feats 64 --decoder-dim 64`
 
 -i is the location of the raw data containing all datExpr, datMeta and graph.csv files \
 -o is the location where the output will be printed \
 -snf is the name of the fused psn  \
 --n-splits is the number of cross validation splits \
--ld is the latent dimension per modality. It is order alphabetically  \
+-ld is the latent dimension per modality. It is order alphabetically thus, mRNA will be compressed to dim of 32 and miRNA to 16  \
 --target is the phenotype being classified \
 --index-col is the column containing the patient ids  
 
-All other arguments are related to the Graph Convolutional Network model
+All other arguments are related to the Graph Convolutional Network with Multi Modal Encoder
 
 ## Requirements
 All requirements are specified in requirements.txt 
