@@ -6,7 +6,7 @@ project = 'BRCA'
 for (modality in c( 'mRNA' , 'miRNA' , 'DNAm' , 'CNV' , 'RPPA'  )) {
   
   print(modality)
-  load(paste0('./data/',dataset , '/raw/', project ,'/',modality,'_processed.RData'))
+  load(paste0('./data/',dataset , '/', project ,'/',modality,'_processed.RData'))
     
   if (modality %in% c('miRNA' , 'mRNA')) {
     g <- expr.to.graph(datExpr , datMeta , trait , top_genes , modality)
@@ -30,8 +30,8 @@ for (modality in c( 'mRNA' , 'miRNA' , 'DNAm' , 'CNV' , 'RPPA'  )) {
     g <- expr.to.graph(datExpr , datMeta , trait , snp_sites , modality)
   }
   
-  write.csv(g, file = paste0('./data/',dataset , '/raw/', project , '/output/',modality,'_graph.csv'))
-  write.csv(datExpr , file = paste0('./data/',dataset , '/raw/', project , '/output','/datExpr_', modality , '.csv'))
-  write.csv(datMeta , file = paste0('./data/',dataset , '/raw/', project , '/output','/datMeta_', modality , '.csv'))
+  write.csv(g, file = paste0('./data/',dataset , '/', project , '/output/',modality,'_graph.csv'))
+  write.csv(datExpr , file = paste0('./data/',dataset , '/', project , '/output','/datExpr_', modality , '.csv'))
+  write.csv(datMeta , file = paste0('./data/',dataset , '/', project , '/output','/datMeta_', modality , '.csv'))
   
 }
