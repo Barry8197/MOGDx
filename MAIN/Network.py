@@ -1,8 +1,6 @@
 import pandas as pd
 import networkx as nx
 import sys  
-sys.path.insert(0, './data/MAIN/')
-import AE
 
 def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
     '''
@@ -43,28 +41,3 @@ def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
         G.add_edges_from(edges)
         
     return G
-
-def node_feature_augmentation(G , datModalities , LATENT_DIM , epochs , learning_rate , train_index , val_index , test_index , device , split_val) :
-    '''
-    Augment Graph with node features extracted using the hidden
-    dimension of an Autoencoder for each data modality
-    '''
-    # Get Training data and specify latent dimension for each modality
-    TRAIN_DATA = [datModalities[data] for data in datModalities]
-    # Link the patient index names to the node numbers
-    G_idx_link = pd.Series(nx.get_node_attributes(G , 'idx'))
-
-    train_subjects_idx = [G_idx_link.get(key) for key in train_index]
-    val_subjects_idx   = [G_idx_link.get(key) for key in val_index]
-    test_subjects_idx  = [G_idx_link.get(key) for key in test_index]
-
-    # Train the autoencoder and extract the hidden dimension
-    reduced_df , ae_losses , auto_encoder_model  = AE.train(TRAIN_DATA, LATENT_DIM , epochs , learning_rate , train_subjects_idx , test_subjects_idx , val_subjects_idx , device , split_val)
-
-    # Join the train, test and validation splits for each data modality
-    node_features = AE.combine_embeddings(reduced_df)
-
-    # Augment Graph with Node Features
-    node_features = node_features.reindex([i[1]['idx'] for i in G.nodes(data=True)])
-
-    return node_features , ae_losses , auto_encoder_model

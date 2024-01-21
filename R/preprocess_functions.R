@@ -166,10 +166,8 @@ expr.to.graph<-function(datExpr , datMeta , trait , top_genes , modality){
   if (modality %in% c('mRNA' , 'miRNA' , 'DNAm' , 'RPPA' , 'CSF')) {
     mat <- mat - rowMeans(mat)
     corr_mat <- cor(mat, method="pearson")
-    #heatmap(corr_mat)
   } else {
     corr_mat <- t(mat)
-    #heatmap(as.matrix(as.dist(corr_mat)))
   }
   
   print(dim(mat))
@@ -211,44 +209,6 @@ snf.to.graph <- function(W , datMeta , trait , idx , sub_mod_list) {
   V(g)$class <- as.character(datMeta[idx,][[trait]])
   V(g)$color <- as.numeric(as.factor(V(g)$class))
   V(g)$vertex.frame.color <- "black"
-  
-  return(g)
-}
-
-snf.to.graph2 <- function(W , datMeta , trait , idx , thresh) {
-  
-  g <- graph.adjacency(
-    W,
-    mode="undirected",
-    weighted=TRUE,
-    diag=FALSE
-  )
-  
-  #Add trait labels to vertices/nodes
-  V(g)$class <- as.character(datMeta[idx,][[trait]])
-  
-  # Change colour of graph vertices
-  V(g)$color <- as.numeric(as.factor(V(g)$class))
-  
-  # Change colour of vertex frames
-  V(g)$vertex.frame.color <- 'black'
-  
-  g <- simplify(g, remove.multiple=TRUE, remove.loops=TRUE)
-  
-  # Remove edges below absolute Pearson correlation 0.8
-  threshold <- quantile(W , thresh)
-  g <- delete_edges(g, E(g)[which(E(g)$weight<threshold)])
-  
-  # Remove any vertices remaining that have no edges
-  g <- delete.vertices(g, degree(g)==0)
-  
-  # Plot the tree object
-  plot(
-    g,
-    layout=layout_with_fr(g),
-    vertex.size=5,
-    vertex.label = NA,
-    main="SNF Graph")
   
   return(g)
 }

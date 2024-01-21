@@ -1,16 +1,12 @@
-source('~/Year2/MOGDx/R/preprocess_functions.R')
+source('~/MOGDx2.0/R/preprocess_functions.R')
 
-setwd('~/Year2/MOGDx/')
-
-#c('mRNA' , 'miRNA' , 'DNAm' , 'Parkinsonism' , 'MDS-UPDRS' , 'CSF' , 'Clinical' , 'SNP' )
-
-trait = 'CONCOHORT_DEFINITION'
-TimeStep = 'V08'
-dataset = 'PPMI'
-for (modality in c( 'mRNA' , 'SNP' , 'DNAm' )) {
+trait = 'paper_BRCA_Subtype_PAM50'
+dataset = 'TCGA'
+project = 'BRCA'
+for (modality in c( 'mRNA' , 'miRNA' , 'DNAm' , 'CNV' , 'RPPA'  )) {
   
   print(modality)
-  load(paste0('./data/',dataset , '/raw/Com_Tmpt/', TimeStep ,'/',modality,'_processed.RData'))
+  load(paste0('./data/',dataset , '/raw/', project ,'/',modality,'_processed.RData'))
     
   if (modality %in% c('miRNA' , 'mRNA')) {
     g <- expr.to.graph(datExpr , datMeta , trait , top_genes , modality)
@@ -34,10 +30,8 @@ for (modality in c( 'mRNA' , 'SNP' , 'DNAm' )) {
     g <- expr.to.graph(datExpr , datMeta , trait , snp_sites , modality)
   }
   
-  write.csv(g, file = paste0('./data/',dataset , '/raw/Com_Tmpt/', TimeStep , '/output/',TimeStep,'_',modality,'_graph.csv'))
-  write.csv(datExpr , file = paste0('./data/',dataset , '/raw/Com_Tmpt/', TimeStep , '/output','/datExpr_', modality , '.csv'))
-  write.csv(datMeta , file = paste0('./data/',dataset , '/raw/Com_Tmpt/', TimeStep , '/output','/datMeta_', modality , '.csv'))
+  write.csv(g, file = paste0('./data/',dataset , '/raw/', project , '/output/',modality,'_graph.csv'))
+  #write.csv(datExpr , file = paste0('./data/',dataset , '/raw/', project , '/output','/datExpr_', modality , '.csv'))
+  #write.csv(datMeta , file = paste0('./data/',dataset , '/raw/', project , '/output','/datMeta_', modality , '.csv'))
   
 }
-
-

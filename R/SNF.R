@@ -1,42 +1,47 @@
 library(SNFtool)
 library(igraph)
 library(data.table)
-source('~/Year2/MOGDx/R/preprocess_functions.R')
+source('./R/preprocess_functions.R')
 
-setwd('~/Year2/MOGDx/')
+dataset <- 'TCGA'
+project <- 'BRCA'
+trait <- c('paper_BRCA_Subtype_PAM50')
+index_col <- 'patient'
 
-project <- 'PPMI'
-trait <- 'CONCOHORT_DEFINITION'
-TimeStep <- 'V08'
-modalities <- c("mRNA", "miRNA", "DNAm" , 'SNP' , 'Clinical' , 'CSF')
+# The list of modalities
+modalities <- c( 'mRNA' , 'miRNA' , 'DNAm' , 'CNV' , 'RPPA'  )
 
-# Initialize an empty list to store all combinations
+# Initialize an empty list to store sublists
 mod_list <- list()
 
-# Loop over different combination lengths
-for (comb_len in 1:length(modalities)) {
-  # Generate all combinations of the current length
-  combinations <- combn(modalities, comb_len, simplify = FALSE)
+for (comb_length in 2:length(modalities)) { 
   
-  # Add each combination to the main list
-  mod_list <- c(mod_list, combinations)
+  len_mod_list <- length(mod_list)
+  # Get all combinations without repetition
+  combinations <- combn(modalities, comb_length)
+  
+  # Convert the matrix of combinations into a list of lists
+  for (i in (len_mod_list+1):(len_mod_list + ncol(combinations))) {
+    sublist <- c(combinations[, i-len_mod_list])
+    mod_list[[i]] <- sublist
+  }
 }
 
 for (sub_mod_list in mod_list) {
-  colnames <- c('PATNO' ,  'race' , 'GENDER' , 'AGE_AT_VISIT' , trait)
+  colnames <- c('patient' ,  'race' , 'gender'  , trait)
   datMeta <- t(data.frame( row.names = colnames))
   for (mod in sub_mod_list) {
     print(mod)
-    datMeta <- rbind(datMeta , read.csv(paste0('./data/',project,'/raw/Com_Tmpt/V02/output/',TimeStep,'/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
+    datMeta <- rbind(datMeta , read.csv(paste0('./data/',dataset,'/raw/',project,'/output/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
   }
   datMeta <- datMeta[!(duplicated(datMeta)),]
-  dim(datMeta)
-  table(datMeta$CONCOHORT_DEFINITION)
+  rownames(datMeta) <- datMeta[[index_col]]
+  print(dim(datMeta))
   
   all_idx <- c()
   g_list <- list()
   for (net in list.files('./Network/SNF/')) {
-    if ((unlist(strsplit(net , '_'))[2] %in% mod_list) && (unlist(strsplit(net , '_'))[1] == TimeStep)) {
+    if (unlist(strsplit(net , '_'))[1] %in% sub_mod_list) {
       print(net)
       net_graph <- read.csv(paste0('./Network/SNF/',net) , row.names = 1)
       patients <- unique(data.frame(id = c(net_graph$from_name , net_graph$to_name) ,
@@ -73,12 +78,9 @@ for (sub_mod_list in mod_list) {
   W = SNF(adjacency_graphs, K , T)
   W <- W - diag(0.5 , dim(W)[1]) 
   
-  g <- snf.to.graph(W , datMeta , trait , all_idx , mod_list)
+  g <- snf.to.graph(W , datMeta , trait , all_idx , sub_mod_list)
   
-  length(V(g))
-  #write.csv(as_long_data_frame(g) , file = paste0('./data/PPMI/raw/Com_Tmpt/V02/output/',TimeStep,'/',TimeStep,'_',paste0(mod_list , collapse = '_'),'_graph.csv'))
-  
+  print(length(V(g)))
+  write.csv(as_long_data_frame(g) , file = paste0('./data/',dataset,'/raw/',project,'/output/',paste0(sub_mod_list , collapse = '_'),'_graph.csv'))
 }
-
-
 
