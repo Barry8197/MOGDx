@@ -1,4 +1,4 @@
-source('~/MOGDx2.0/R/preprocess_functions.R')
+source('~/MOGDx/R/preprocess_functions.R')
 
 trait = 'paper_BRCA_Subtype_PAM50'
 dataset = 'TCGA'
