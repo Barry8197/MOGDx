@@ -11,6 +11,7 @@ source('./R/preprocess_functions.R')
 setwd('~/MOGDx')
 
 project <- 'BRCA'
+dataset <- 'TCGA'
 trait <- 'paper_BRCA_Subtype_PAM50'
   
 # -------------------------------------------------------------------------
@@ -57,7 +58,7 @@ datExpr <- diff_expr_res$datExpr
 datMeta <- diff_expr_res$datMeta
 dds <- diff_expr_res$dds
 top_genes <- diff_expr_res$top_genes
-save(datExpr, datMeta, dds, top_genes, file=paste0('./data/raw/',project,'/mRNA_processed.RData'))
+save(datExpr, datMeta, dds, top_genes, file=paste0('./data/',dataset,'/raw/',project,'/mRNA_processed.RData'))
 
 # -------------------------------------------------------------------------
 # miRNA preprocessing -----------------------------------------------------
@@ -111,7 +112,7 @@ datExpr <- diff_expr_res$datExpr
 datMeta <- diff_expr_res$datMeta
 dds <- diff_expr_res$dds
 top_genes <- diff_expr_res$top_genes
-save(datExpr, datMeta, dds, top_genes, file=paste0('./data/raw/',project,'/miRNA_processed.RData'))
+save(datExpr, datMeta, dds, top_genes, file=paste0('./data/',dataset,'/raw/',project,'/miRNA_processed.RData'))
 
 # -------------------------------------------------------------------------
 # DNAm preprocessing ------------------------------------------------------
@@ -172,7 +173,7 @@ for (res in traitResults) {
 
 # Save CpG sites and expression data
 datExpr <- count_mtx
-save(cpg_sites , datExpr , datMeta , file = paste0('./data/raw/',project,'/DNAm_processed.RData'))
+save(cpg_sites , datExpr , datMeta , file = paste0('./data/',dataset,'/raw/',project,'/DNAm_processed.RData'))
 
 # ----------------------------------------------------------------------------------------
 # Protein (RPPA) pre-processing ----------------------------------------------------------
@@ -221,7 +222,7 @@ for (res in traitResults) {
 
 # Save proteins and expression data
 datExpr <- count_mtx
-save(protein_sites , datExpr , datMeta , file = paste0('./data/raw/',project,'/RPPA_processed.RData'))
+save(protein_sites , datExpr , datMeta , file = paste0('./data/',dataset,'/raw/',project,'/RPPA_processed.RData'))
 
 # -------------------------------------------------------------------------
 # CNV pre-processing ------------------------------------------------------
@@ -279,5 +280,5 @@ rm(count_mtx_log)
 
 # Save CNV's and expression
 datExpr <- count_mtx
-save(cnv_sites , datExpr , datMeta , file = paste0('./data/raw/',project,'/CNV_processed.RData'))
+save(cnv_sites , datExpr , datMeta , file = paste0('./data/',dataset,'/raw/',project,'/CNV_processed.RData'))
 
