@@ -2,7 +2,7 @@ library(TCGAbiolinks)
 library(SummarizedExperiment)
 library(dplyr)
 
-setwd('~/MOGDx2.0/')
+setwd('~/MOGDx/')
 tcga_project <- 'KIRC'
 
 # -------------------------------------------------------------------------
@@ -20,7 +20,7 @@ GDCdownload(query = query.met)
 data <- GDCprepare(
   query = query.met ,
   save = TRUE,
-  save.filename = paste0('/data/TCGA-',tcga_project,'/DNAm/DNAm.rda')
+  save.filename = paste0('./data/TCGA-',tcga_project,'/DNAm/DNAm.rda')
 )
 
 # -------------------------------------------------------------------------
@@ -38,7 +38,7 @@ GDCdownload(query.exp)
 expdat <- GDCprepare(
       query = query.exp,
       save = TRUE,
-      save.filename = paste0('/data/TCGA-',tcga_project,'/mRNA/mRNA.rda')
+      save.filename = paste0('./data/TCGA-',tcga_project,'/mRNA/mRNA.rda')
 )
 
 # -------------------------------------------------------------------------
@@ -56,7 +56,7 @@ GDCdownload(query.mirna)
 mirna <- GDCprepare(
      query = query.mirna,
      save = TRUE,
-     save.filename = paste0('/data/TCGA-',tcga_project,'/miRNA/miRNA.rda')
+     save.filename = paste0('./data/TCGA-',tcga_project,'/miRNA/miRNA.rda')
 )
 
 # -------------------------------------------------------------------------
@@ -73,7 +73,7 @@ GDCdownload(query.rppa)
 rppa <- GDCprepare(
     query = query.rppa,
     save = TRUE,
-    save.filename = paste0('/data/TCGA-',tcga_project,'/RPPA/RPPA.rda')
+    save.filename = paste0('./data/TCGA-',tcga_project,'/RPPA/RPPA.rda')
 )
 
 # -------------------------------------------------------------------------
@@ -90,6 +90,6 @@ GDCdownload(query.cnv)
 data <- GDCprepare(
   query.cnv,
   save = TRUE,
-  save.filename = paste0('/data/TCGA-',tcga_project,'/CNV/CNV.rda')
+  save.filename = paste0('./data/TCGA-',tcga_project,'/CNV/CNV.rda')
   
 )
