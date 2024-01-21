@@ -58,9 +58,11 @@ Use the R script `knn_graph_generation.R` specifying the phenotypical trait, pro
 
 ### Step 4 - SNF
 Create a folder called Network outside data \
-Copy each modalities `modality_graph.csv` to this folder\
+Copy each modalities `modality_graph.csv` to this folder \
 
 Specify the modalities of interest in the list `mod_list` 
+
+Point the SNF script to the new Network folder
 
 Run the R script `SNF.R` 
 
