@@ -8,6 +8,8 @@ library(SummarizedExperiment)
 
 source('./R/preprocess_functions.R')
 
+setwd('~/MOGDx')
+
 project <- 'BRCA'
 trait <- 'paper_BRCA_Subtype_PAM50'
   
@@ -18,7 +20,7 @@ trait <- 'paper_BRCA_Subtype_PAM50'
 # The meta data is (typically) located in the coldata of the mRNA gene expression
 # experiment. 
 
-load(paste0('~/data/TCGA-',project,'/mRNA/mRNA.rda'))
+load(paste0('./data/TCGA-',project,'/mRNA/mRNA.rda'))
 # Create coldata and condition table --------------------------------------
 coldata <- colData(data)
 datMeta <- as.data.frame(coldata[,c('patient','race' , 'gender' , 'sample_type' , trait)])
@@ -27,20 +29,20 @@ datMeta <- datMeta[!(duplicated(datMeta[ , c('patient' , trait)])) , ]
 datMeta[[trait]] <- factor(datMeta[[trait]])
 rownames(datMeta) <- datMeta$patient
 
-write.csv(datMeta , file = paste0('~/data/TCGA-',project,'/datMeta.csv'))
+write.csv(datMeta , file = paste0('./data/TCGA-',project,'/datMeta.csv'))
 
 # -------------------------------------------------------------------------
 # mRNA pre-processing -----------------------------------------------------
 # -------------------------------------------------------------------------
 
 # Pull in Count Matrices --------------------------------------------------
-load(paste0('~/data/TCGA-',project,'/mRNA/mRNA.rda'))
+load(paste0('./data/TCGA-',project,'/mRNA/mRNA.rda'))
 count_mtx <- assay(data)
 colnames(count_mtx) <- substr(colnames(count_mtx) , 1, 12)
 count_mtx <- count_mtx[, !(duplicated(colnames(count_mtx)))]
 
 # Pull in Meta File
-datMeta <- read.csv(paste0('~/data/TCGA-',project,'/datMeta.csv') , row.names = 1)
+datMeta <- read.csv(paste0('./data/TCGA-',project,'/datMeta.csv') , row.names = 1)
 
 # Get intersection of count and meta
 common_idx <- intersect(colnames(count_mtx) , rownames(datMeta))
@@ -62,7 +64,7 @@ save(datExpr, datMeta, dds, top_genes, file=paste0('./data/raw/',project,'/mRNA_
 # -------------------------------------------------------------------------
  
 #Pull in count data
-load(paste0('~/data/TCGA-',project,'/miRNA/miRNA.rda'))
+load(paste0('./data/TCGA-',project,'/miRNA/miRNA.rda'))
 
 # Get Count Matrices and filter for reads
 read_count <- data.frame(row.names = data$miRNA_ID)
@@ -92,7 +94,7 @@ colnames(read_count) <- colname_read_count
 colnames(read_per_million) <- colname_read_per_million
 
 # Pull in Meta File
-datMeta <- read.csv(paste0('~/data/TCGA-',project,'/datMeta.csv') , row.names = 1)
+datMeta <- read.csv(paste0('./data/TCGA-',project,'/datMeta.csv') , row.names = 1)
 
 # Get Intersection of ID's
 count_mtx <- read_count
@@ -116,7 +118,7 @@ save(datExpr, datMeta, dds, top_genes, file=paste0('./data/raw/',project,'/miRNA
 # -------------------------------------------------------------------------
 
 # Load CpG Counts ---------------------------------------------------------
-load(paste0('~/data/TCGA-',project,'/DNAm/DNAm.rda'))
+load(paste0('./data/TCGA-',project,'/DNAm/DNAm.rda'))
 count_mtx <- assay(data)
 
 to_keep = complete.cases(count_mtx) #removed 191928 cpg sites
@@ -138,7 +140,7 @@ top_cpg_indices <- sorted_indices[1:num_top_cpg]
 count_mtx <- count_mtx[ , top_cpg_indices]
 
 # Pull in Meta File
-datMeta <- read.csv(paste0('~/data/TCGA-',project,'/datMeta.csv') , row.names = 1)
+datMeta <- read.csv(paste0('./data/TCGA-',project,'/datMeta.csv') , row.names = 1)
 
 # Get Intersection of ID's
 count_mtx <- count_mtx[!(duplicated(rownames(count_mtx))) , ] 
@@ -175,13 +177,13 @@ save(cpg_sites , datExpr , datMeta , file = paste0('./data/raw/',project,'/DNAm_
 # ----------------------------------------------------------------------------------------
 # Protein (RPPA) pre-processing ----------------------------------------------------------
 # ----------------------------------------------------------------------------------------
-load(paste0('~/data/TCGA-',project,'/RPPA/RPPA.rda'))
+load(paste0('./data/TCGA-',project,'/RPPA/RPPA.rda'))
 count_mtx <- t(data[  , 6:ncol(data) ])
 colnames(count_mtx) <- data$peptide_target
 rownames(count_mtx) <- substr(rownames(count_mtx) , 1,12)
 
 # Load Meta Data -----------------------------------------------------------
-datMeta <- read.csv(paste0('~/data/TCGA-',project,'/datMeta.csv') , row.names = 1)
+datMeta <- read.csv(paste0('./data/TCGA-',project,'/datMeta.csv') , row.names = 1)
 
 # Subset to match ID's ----------------------------------------------------
 count_mtx <- count_mtx[!(duplicated(rownames(count_mtx))) , ] 
@@ -226,7 +228,7 @@ save(protein_sites , datExpr , datMeta , file = paste0('./data/raw/',project,'/R
 # -------------------------------------------------------------------------
 
 # Read in Count Matrix
-load(paste0('~/data/TCGA-',project,'/CNV/CNV.rda'))
+load(paste0('./data/TCGA-',project,'/CNV/CNV.rda'))
 
 count_mtx <- t(assay(data))
 rownames_mtx <- c()
@@ -237,7 +239,7 @@ rownames(count_mtx) <- rownames_mtx
 count_mtx <- count_mtx[,colSums(is.na(count_mtx))<0.5*nrow(count_mtx)] #remove columns with more than 50% NA
 
 # Read in Meta Data
-datMeta <- read.csv(paste0('~/data/TCGA-',project,'/datMeta.csv') , row.names = 1)
+datMeta <- read.csv(paste0('./data/TCGA-',project,'/datMeta.csv') , row.names = 1)
 
 #Intersect to common IDs
 count_mtx <- count_mtx[!(duplicated(rownames(count_mtx))) , ] 
