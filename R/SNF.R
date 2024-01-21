@@ -32,7 +32,7 @@ for (sub_mod_list in mod_list) {
   datMeta <- t(data.frame( row.names = colnames))
   for (mod in sub_mod_list) {
     print(mod)
-    datMeta <- rbind(datMeta , read.csv(paste0('./data/',dataset,'/raw/',project,'/output/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
+    datMeta <- rbind(datMeta , read.csv(paste0('./data/',dataset,'/',project,'/output/datMeta_',mod,'.csv') , row.names = 1)[ , colnames])
   }
   datMeta <- datMeta[!(duplicated(datMeta)),]
   rownames(datMeta) <- datMeta[[index_col]]
@@ -81,6 +81,6 @@ for (sub_mod_list in mod_list) {
   g <- snf.to.graph(W , datMeta , trait , all_idx , sub_mod_list)
   
   print(length(V(g)))
-  write.csv(as_long_data_frame(g) , file = paste0('./data/',dataset,'/raw/',project,'/output/',paste0(sub_mod_list , collapse = '_'),'_graph.csv'))
+  write.csv(as_long_data_frame(g) , file = paste0('./data/',dataset,'/',project,'/output/',paste0(sub_mod_list , collapse = '_'),'_graph.csv'))
 }
 
