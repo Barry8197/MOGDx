@@ -10,8 +10,8 @@ Multi-omic Graph Diagnosis (MOGDx) is a tool for the integration of omic data an
 ### Pre-preocessing and Graph Generation
 ![R preprocess](./workflow_diagrams/pre-processing_modalities_inkscape.png?raw=true)
 
-### AE, GNN and Heterogenous Disease Classification
-![Python](./workflow_diagrams/python_inkscape.png?raw=true)
+### Graph Convolutionl Network with Multi Modal Encoder
+![Python](./workflow_diagrams/gcn-mme.png?raw=true)
 
 ## Installation
 A working version of R and Python is required. R version 4.2.2 and Python version 3.9.2 was used to obtain all results.
