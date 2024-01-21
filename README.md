@@ -1,7 +1,9 @@
 # MOGDx
 [![DOI](https://zenodo.org/badge/622972427.svg)](https://zenodo.org/doi/10.5281/zenodo.10545043)
 ## Introduction
-Multi-omic Graph Diagnosis (MOGDx) is a tool for the integration of omic data and classification of heterogeneous diseases. MOGDx exploits a patient similarity network framework to integrate omic data using Similarity Network Fusion (SNF) [^fn1]. One autoencoder per omic modality is trained and the latent embeddings from each autoencoder are concatenated. These reduced vectors are used as node features in the integrated network. Classification is performed on the fused network using the Graph Convolutional Network (GCN) deep learning algorithm [^fn2]. GCN is a novel paradigm for learning from both network structure and node features. Heterogeneity in diseases confounds clinical trials, treatments, genetic association and more. Accurate stratification of these diseases is therefore critical to optimize treatment strategies for patients with heterogeneous diseases. Previous research has shown that accurate classification of heterogenous diseases has been achieved by integrating and classifying multi-omic data [^fn3][^fn4][^fn5]. MOGDx improves upon this research. The advantages of MOGDx is that it can handle both a variable number of modalities and missing patient data in one or more modalities. Performance of MOGDx was benchmarked on the BRCA TCGA dataset with competitive performance compared to its counterparts. In summary, MOGDx combines patient similarity network integration with graph neural network learning for accurate disease classification. 
+Multi-omic Graph Diagnosis (MOGDx) is a tool for the integration of omic data and classification of heterogeneous diseases. MOGDx exploits a Patient Similarity Network (PSN) framework to integrate omic data using Similarity Network Fusion (SNF) [^fn1]. A single PSN is built per modality. The PSN is built using the most informative features of that modality. The most informative features are found by performing a contrastive analysis between classification targets. For example, in mRNA, differentially expressed genes will be used to construct the PSN. Where suitable, Pearson correlation, otherwise Euclidean distance is measured between these informative features and the network is constructed using the K Nearest Neighbours (KNN) algorithm. SNF is used to combine individual PSN's into a single network. The fused PSN and the omic datasets are input into the Graph Convultional Network with Multi Modal Encoder, the architecture of which is shown in below. Each omic measure is compressed using a two layer encoder. The compressed encoded layer of each modality is then decoded to a shared latent space using mean pooling. This encourages each modality to learn the same latent space. The shared latent space is the node feature matrix, required for training the GCN, with each row forming a node feature vector. Classification is performed on the fused network using the Graph Convolutional Network (GCN) deep learning algorithm [^fn2]. 
+
+GCN is a novel paradigm for learning from both network structure and node features. Heterogeneity in diseases confounds clinical trials, treatments, genetic association and more. Accurate stratification of these diseases is therefore critical to optimize treatment strategies for patients with heterogeneous diseases. Previous research has shown that accurate classification of heterogenous diseases has been achieved by integrating and classifying multi-omic data [^fn3][^fn4][^fn5]. MOGDx improves upon this research. The advantages of MOGDx is that it can handle both a variable number of modalities and missing patient data in one or more modalities. Performance of MOGDx was benchmarked on the BRCA TCGA dataset with competitive performance compared to its counterparts. In summary, MOGDx combines patient similarity network integration with graph neural network learning for accurate disease classification. 
 
 ## Workflow
 ### Full pipeline overview
@@ -19,12 +21,16 @@ A working version of R and Python is required. R version 4.2.2 and Python versio
 Steps 1-4 are executed in R, while step 5 is designed to run on a cluster with a GPU but can be executed locally if there is sufficient memory availability. 
 
 ### Step 1 - Data Download
+Create a folder called `data` and a folder for each dataset with naming convention 'TCGA-' e.g. 'TCGA-BRCA' inside this folder.
+
 Use the R script `data_download.R` to download all data changing the project to BRCA/LGG/KICH/KIRC/KICH
 
 ### Step 2 - Preprocessing
-Create a folder called data and a folder for each dataset with naming convention 'TCGA-' e.g. 'TCGA-BRCA' inside this folder.
+Create a folder called for the dataset e.g. TCGA, and within this folder create a folder for each project.
 
-Run the R script `Preprocessing.R` specifying the phenotypical trait and project. 
+Run the R script `Preprocessing.R` specifying the phenotypical trait and project, checking to ensure the paths point to the created `data` folder. 
+
+Save each modalities processed folder with naming convention `modality_processed.RData`.
 
 The options are \
 BRCA : \
@@ -44,24 +50,47 @@ project = 'KIPAN' \
 trait = 'subtype' 
 
 ### Step 3 - Graph Generation
-Create a folder called Network, to store all graphs. Within this folder create a folder for each modality. Each modalities graph will be saved inside
-their respective folder with name graph.csv.
+Point the knn_graph_generation.R to the project folder containing the processed modalities.
+
+Create a folder called raw. This is the folder from which MOGDx will be run.
 
 Use the R script `knn_graph_generation.R` specifying the phenotypical trait, project and modalities downloaded in the for loop.
 
 ### Step 4 - SNF
-Create a folder in Network called SNF \
-Copy each modalities graph.csv to this folder with naming convention 'modality_graph.csv' e.g. 'mRNA_graph.csv' \
+Create a folder called Network outside data \
+Copy each modalities `modality_graph.csv` to this folder\
 
 Specify the modalities of interest in the list `mod_list` 
 
 Run the R script `SNF.R` 
 
-### Step 5 - Execute MOGDx.py
-Copy all expression and meta files for all modalities into a single folder with naming convention 'modality_datExpr.csv'/'modality_datMeta.csv' e.g. 'mRNA_datExpr.csv'/'mRNA_datMeta.csv'. 
-These files will have been created in the directory `./data/TCGA-BRCA/mRNA/datExpr.csv` for the mRNA expression file in the BRCA project
+### Example of directory structure for TCGA
+- data
+  - TCGA-BRCA
+     - mRNA
+       - mRNA.rda
+     - miRNA
+       - miRNA.rda
+  - TCGA
+    - BRCA
+      - mRNA_processed.RData
+      - miRNA_processed.RData
+      - raw
+        - datExpr_mRNA.csv
+        - datMeta_mRNA.csv
+        - mRNA_graph.csv
+        - datExpr_miRNA.csv
+        - datMeta_miRNA.csv
+        - miRNA_graph.csv
+        - mRNA_miRNA_graph.csv
 
-Copy the patient similarity network in  `./Network/SNF/graph.csv` to this folder also
+
+### Step 5 - Execute MOGDx.py
+Ensure all expression, meta and graph files for all modalities are in a single folder with naming convention 'modality_datExpr.csv'/'modality_datMeta.csv'/'modality_graph.csv' e.g. 'mRNA_datExpr.csv'/'mRNA_datMeta.csv'/'modality_graph.csv'. \
+If performing an analysis on integrated modalities ensure all expression and meta files for the integrated modalities are in the folder. \
+e.g. if analysing mRNA & miRNA, ensure mRNA_miRNA_graph.csv , datMeta_mRNA.csv, datMeta_miRNA.csv, datExpr_mRNA.csv and datExper_miRNA.csv are in the same folder. \
+
+This process will have been done automatically by the creation of the raw folder and running of SNF.R and it is easiest to retain this folder.
 
 MOGDx is a command line tool. A sample command is : \
 `python MOGDx.py -i "/raw_data/raw_BRCA" -o "./Output/BRCA/"  -snf "graph.csv" --n-splits 5 -ld 32 64 64 32 32 --target "paper_BRCA_Subtype_PAM50" --index-col "patient" --epochs 2500 --lr 0.01 --layer-activation "elu" "elu"  --layers 128 128`
