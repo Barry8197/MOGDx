@@ -31,7 +31,7 @@ for (modality in c( 'mRNA' , 'miRNA' , 'DNAm' , 'CNV' , 'RPPA'  )) {
   }
   
   write.csv(g, file = paste0('./data/',dataset , '/raw/', project , '/output/',modality,'_graph.csv'))
-  #write.csv(datExpr , file = paste0('./data/',dataset , '/raw/', project , '/output','/datExpr_', modality , '.csv'))
-  #write.csv(datMeta , file = paste0('./data/',dataset , '/raw/', project , '/output','/datMeta_', modality , '.csv'))
+  write.csv(datExpr , file = paste0('./data/',dataset , '/raw/', project , '/output','/datExpr_', modality , '.csv'))
+  write.csv(datMeta , file = paste0('./data/',dataset , '/raw/', project , '/output','/datMeta_', modality , '.csv'))
   
 }
