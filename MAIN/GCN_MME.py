@@ -9,9 +9,9 @@ import torch.nn.functional as F
 from dgl.nn import GraphConv
 
 
-class AE(torch.nn.Module):
+class Encoder(torch.nn.Module):
     '''
-    PyTorch class specififying autoencoder of variable input and hidden dims
+    PyTorch class specififying encoder of variable input and hidden dims
     The forward function returns both hidden (encoded) and decoded (output). 
     The function of this class is to perform dimensionality reduction on omic data.
     '''
@@ -36,20 +36,20 @@ class AE(torch.nn.Module):
         
         return encoded , decoded 
     
-class GCN_MMAE(nn.Module):
+class GCN_MME(nn.Module):
     def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes):
         
         super().__init__()
         
-        self.ae_dims = nn.ModuleList()
+        self.encoder_dims = nn.ModuleList()
         self.gcnlayers = nn.ModuleList()
         self.batch_norms = nn.ModuleList()
         num_layers = 2
 
-        # GCN with AE reduced dim input and pooling scheme
+        # GCN with Encoder reduced dim input and pooling scheme
         
         for modality in range(len(input_dims)):  # excluding the input layer
-            self.ae_dims.append(AE(input_dims[modality] , latent_dims[modality] , decoder_dim))
+            self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
         
         for layers in range(num_layers) :
             if layers == 0 :
@@ -68,24 +68,26 @@ class GCN_MMAE(nn.Module):
         # list of hidden representation at each layer (including the input layer)
         
         reduced_dims = []
-        ordered_nodes = pd.Series(nx.get_node_attributes(g , 'idx')).astype(str)
+        ordered_nodes = pd.Series(nx.get_node_attributes(g , 'idx').keys()).astype(str)
         node_features = 0
-        for i , ae in enumerate(self.ae_dims) : 
+        for i , Encoder in enumerate(self.encoder_dims) : 
             
             all_subjects = subjects_list[i] + list(set(ordered_nodes) - set(subjects_list[i]))
             reindex = pd.Series(range(len(all_subjects)) , index=all_subjects).loc[ordered_nodes.values].values
 
             n = len(all_subjects) - len(subjects_list[i])
-            ae_encoded , ae_decoded = ae(h[i])
-            ae_decoded = self.drop(ae_decoded)
-            ae_decoded_imputed = torch.concat([ae_decoded , torch.median(ae_decoded, dim=0).values.repeat(n).reshape(n , ae_decoded.shape[1])])[reindex]
+            encoded , decoded = Encoder(h[i])
+            decoded = self.drop(decoded)
+            decoded_imputed = torch.concat([decoded , torch.median(decoded, dim=0).values.repeat(n).reshape(n , decoded.shape[1])])[reindex]
             
-            node_features += ae_decoded_imputed
+            node_features += decoded_imputed
             
         node_features = node_features/(i+1)
             
         g = dgl.from_networkx(g).to(device)
         g.ndata['feat'] = node_features
+        if g.in_degrees().sum() == 0 :
+            g = dgl.add_self_loop(g)
         
         h = node_features
 

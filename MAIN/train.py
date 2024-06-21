@@ -12,7 +12,7 @@ import pandas as pd
 import networkx as nx
 
 
-def train(g, h , subjects_list , train_split , val_split , device ,  model , labels , targets , epochs , lr , patience):
+def train(g, h , subjects_list , train_split , val_split , device ,  model , labels , epochs , lr , patience):
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
@@ -48,7 +48,7 @@ def train(g, h , subjects_list , train_split , val_split , device ,  model , lab
         scheduler.step()
         
         if (epoch % 5) == 0 : 
-            valid_loss , valid_acc , valid_f1 , valid_PRC , valid_SNS = evaluate(val_split, device, g , h , subjects_list , model , labels)
+            valid_loss , valid_acc , *_ = evaluate(val_split, device, g , h , subjects_list , model , labels)
             print(
                 "Epoch {:05d} | Loss {:.4f} | Train Acc. {:.4f} | Validation Acc. {:.4f} ".format(
                     epoch, loss.item() , train_acc, valid_acc
@@ -71,7 +71,6 @@ def train(g, h , subjects_list , train_split , val_split , device ,  model , lab
     fig , ax = plt.subplots(figsize=(6,4))
     ax.plot(train_loss  , label = 'Train Loss')
     ax.plot(range(5 , len(train_loss)+1 , 5) , val_loss  , label = 'Validation Loss')
-    plt.ylim(0,5)
     ax.legend()
 
     return fig
@@ -97,34 +96,28 @@ def evaluate(idx, device, g , h , subjects_list , model , labels):
         SNS = recall_score(binary_out, labels_out , average="weighted")
         F1 = 2*((PRC*SNS)/(PRC+SNS))
     
-    return loss , acc , F1 , PRC , SNS
+    return loss , acc , F1 , PRC , SNS , logits
 
             
-def confusion_matrix(g , h , subjects_list , device , model , targets , mlb) : 
-    model.eval()
-    logits = model(g , h , subjects_list , device)
+def confusion_matrix(logits , targets , display_labels ) : 
 
     _, predicted = torch.max(logits, 1)
 
-    true = mlb.transform(targets.values.reshape(-1,1)).argmax(1)
+    _, true = torch.max(targets , 1)
 
-    cm = sk.metrics.confusion_matrix(true, predicted.cpu().detach().numpy())
+    cm = sk.metrics.confusion_matrix(true.cpu().detach().numpy(), predicted.cpu().detach().numpy())
 
-    display_labels= list(targets.astype("category").cat.categories)
     cmat = sns.heatmap(cm , annot = True , fmt = 'd' , cmap = 'Blues' , xticklabels=display_labels , yticklabels=display_labels , cbar = False)
     
     return cmat
 
-def AUROC(g , h , subjects_list , device , model , targets , mlb) : 
-    model.eval()
+def AUROC(logits, targets , meta) : 
 
-    logits = model(g , h , subjects_list , device)
-
-    n_classes = len(targets.unique())
-    y_score = mlb.transform(targets.values.reshape(-1,1))
+    n_classes = targets.shape[1]
+    y_score = targets.cpu().detach().numpy()
 
     Y_test = nn.functional.softmax(logits , dim = 1).cpu().detach().numpy()
-
+    
     # For each class
     precision = dict()
     recall = dict()
@@ -165,7 +158,7 @@ def AUROC(g , h , subjects_list , device , model , targets , mlb) :
             precision=precision[i],
             average_precision=average_precision[i],
         )
-        display.plot(ax=ax, name=f"Precision-recall for class {targets.unique()[i]}", color=color)
+        display.plot(ax=ax, name=f"Precision-recall for class {meta.astype('category').cat.categories[i]}", color=color)
 
     # add the legend for the iso-f1 curves
     handles, plt_labels = display.ax_.get_legend_handles_labels()
