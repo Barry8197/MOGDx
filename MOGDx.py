@@ -23,20 +23,25 @@ print("Finished Library Import \n")
 
 def main(args): 
     
+    # Check if output directory exists, if not create it
     if not os.path.exists(args.output) : 
         os.makedirs(args.output, exist_ok=True)
         
+    # Specify the device to use
     device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
     print("Using %s device" % device)
     get_gpu_memory()
 
+    # Load data and metadata
     datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col)
 
+    # Load SNF graph
     graph_file = args.input + '/' + '_'.join(args.modalities) + '_graph.graphml'
     g = nx.read_graphml(graph_file)
 
     meta = meta.loc[sorted(meta.index)]
 
+    # Generate K Fold splits
     if args.no_shuffle : 
         skf = StratifiedKFold(n_splits=args.n_splits , shuffle=False) 
     else :
@@ -44,6 +49,7 @@ def main(args):
 
     print(skf)
 
+    # Order model inputs and identify subjects in each modality
     subjects_list = [list(set(g.nodes) & set(datModalities[mod].index)) for mod in datModalities]
     h = [torch.from_numpy(datModalities[mod].loc[subjects_list[i]].to_numpy(dtype=np.float32)).to(device) for i , mod in enumerate(datModalities) ]
     MME_input_shapes = [ datModalities[mod].shape[1] for mod in datModalities]
@@ -51,20 +57,26 @@ def main(args):
     del datModalities
     gc.collect()
 
+    # Get the unique labels in the metadata
     labels = F.one_hot(torch.Tensor(list(meta.astype('category').cat.codes)).to(torch.int64)).to(device)
+
     output_metrics = []
     test_logits = []
     test_labels = []
+    
     for i, (train_index, test_index) in enumerate(skf.split(meta.index, meta)) :
 
+        # Initialize model
         model = GCN_MME(MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats  , len(node_subjects.unique())).to(device)
         print(model)
         print(g)
 
+         # Split training data into training and validation sets
         train_index , val_index = train_test_split(
             train_index, train_size=0.8, test_size=None, stratify=meta.iloc[train_index]
             )
 
+        # Train the model
         loss_plot = train(g, h , subjects_list , train_index , val_index , device ,  model , labels , 2000 , 1e-3 , 100)
         plt.title(f'Loss for split {i}')
         save_path = args.output + '/loss_plots/'
@@ -72,6 +84,7 @@ def main(args):
         plt.savefig(f'{save_path}loss_split_{i}.png' , dpi = 200)
         plt.clf()
 
+        # Evaluate the model
         test_output_metrics = evaluate(test_index , device , g , h , subjects_list , model , labels )
 
         print(
@@ -79,9 +92,11 @@ def main(args):
             i+1 , test_output_metrics[1] , test_output_metrics[2] )
         )
         
+        # Save the test logits and labels for later analysis
         test_logits.extend(test_output_metrics[-1][test_index])
         test_labels.extend(labels[test_index])
         
+        # Save the output metrics and best performing model
         output_metrics.append(test_output_metrics)
         if i == 0 : 
             best_model = model
@@ -97,7 +112,7 @@ def main(args):
         print('Clearing gpu memory')
         get_gpu_memory()
             
-                        
+    # Save the output metrics to a file   
     accuracy = []
     F1 = []
     output_file = args.output + '/' + "test_metrics.txt"
@@ -153,6 +168,13 @@ def main(args):
 
         
 def construct_parser():
+    """
+    Construct the argument parser for MOGDx.
+
+    Returns:
+        argparse.ArgumentParser: The argument parser object.
+    """
+
     # Training settings
     parser = argparse.ArgumentParser(description='MOGDx')
     parser.add_argument('--epochs', type=int, default=100, metavar='N',
@@ -200,14 +222,15 @@ def construct_parser():
                         'input data for the model to read')
     parser.add_argument('-o', '--output', required=True, help='Path to the '
                         'directory to write output to')
-    parser.add_argument('-snf', '--snf-net', required=True, help='Name of the '
-                        'network in csv format from iGraph in R (exported as as_long_data_frame()')
+    parser.add_argument('-mod', '--modalities', required=True, help='Name of the'
+                        'modalities to include in the integration. Must be a list of strings')
     parser.add_argument('-ld' , '--latent-dim', required=True, nargs="+", type=int , help='List of integers '
                         'corresponding to the length of hidden dims of each data modality')
     parser.add_argument('--target' , required = True , help='Column name referring to the'
                         'disease classification label')
     return parser
 
+# Run the main function
 if __name__ == '__main__':
     parser = construct_parser()
     args = parser.parse_args()
