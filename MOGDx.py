@@ -4,24 +4,20 @@ import numpy as np
 import os
 import sys  
 sys.path.insert(0, './MAIN/')
-import Network
 from utils import *
-from GCN_MMAE import GCN_MMAE
+from GNN_MME import *
 from train import *
+import preprocess_functions
 
 import matplotlib.pyplot as plt
 from sklearn.model_selection import StratifiedKFold 
-from sklearn.preprocessing import MultiLabelBinarizer
 import networkx as nx
 import torch
-from torch.nn.parallel import DataParallel
 from datetime import datetime
 import joblib
 import warnings
 import gc
 warnings.filterwarnings("ignore")
-
-mlb = MultiLabelBinarizer()
 
 print("Finished Library Import \n")
 
@@ -34,10 +30,12 @@ def main(args):
     print("Using %s device" % device)
     get_gpu_memory()
 
-    datModalities , meta = data_parsing(args.input , args.snf_net , args.target , args.index_col)
+    datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col)
 
-    graph_file = args.input + '/' + args.snf_net
-    g = Network.network_from_csv(graph_file , args.no_psn)
+    graph_file = args.input + '/' + '_'.join(args.modalities) + '_graph.graphml'
+    g = nx.read_graphml(graph_file)
+
+    meta = meta.loc[sorted(meta.index)]
 
     if args.no_shuffle : 
         skf = StratifiedKFold(n_splits=args.n_splits , shuffle=False) 
@@ -46,30 +44,28 @@ def main(args):
 
     print(skf)
 
-    node_subjects = meta.loc[pd.Series(nx.get_node_attributes(g , 'idx'))].reset_index(drop=True)
-    node_subjects.name = args.target
-
-    subjects_list = [list(set(pd.Series(nx.get_node_attributes(g , 'idx')).astype(str)) & set(datModalities[mod].index)) for mod in datModalities]
+    subjects_list = [list(set(g.nodes) & set(datModalities[mod].index)) for mod in datModalities]
     h = [torch.from_numpy(datModalities[mod].loc[subjects_list[i]].to_numpy(dtype=np.float32)).to(device) for i , mod in enumerate(datModalities) ]
-    GCN_MMAE_input_shapes = [ datModalities[mod].shape[1] for mod in datModalities]
+    MME_input_shapes = [ datModalities[mod].shape[1] for mod in datModalities]
     
     del datModalities
     gc.collect()
 
-    labels = torch.from_numpy(np.array(mlb.fit_transform(node_subjects.values.reshape(-1,1)) , dtype = np.float32)).to(device)
-
+    labels = F.one_hot(torch.Tensor(list(meta.astype('category').cat.codes)).to(torch.int64)).to(device)
     output_metrics = []
-    for i, (train_index, test_index) in enumerate(skf.split(node_subjects.index, node_subjects)) :
+    test_logits = []
+    test_labels = []
+    for i, (train_index, test_index) in enumerate(skf.split(meta.index, meta)) :
 
-        model = GCN_MMAE(GCN_MMAE_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats  , len(node_subjects.unique())).to(device)
+        model = GCN_MME(MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats  , len(node_subjects.unique())).to(device)
         print(model)
         print(g)
 
-        test_index , val_index = train_test_split(
-            test_index, train_size=0.5, test_size=None, stratify=node_subjects.loc[test_index]
+        train_index , val_index = train_test_split(
+            train_index, train_size=0.8, test_size=None, stratify=meta.iloc[train_index]
             )
 
-        loss_plot = train(g, h , subjects_list , train_index , val_index , device ,  model , labels , node_subjects , args.epochs , args.lr , args.patience)
+        loss_plot = train(g, h , subjects_list , train_index , val_index , device ,  model , labels , 2000 , 1e-3 , 100)
         plt.title(f'Loss for split {i}')
         save_path = args.output + '/loss_plots/'
         os.makedirs(save_path, exist_ok=True)
@@ -82,6 +78,9 @@ def main(args):
             "Fold : {:01d} | Test Accuracy = {:.4f} | F1 = {:.4f} ".format(
             i+1 , test_output_metrics[1] , test_output_metrics[2] )
         )
+        
+        test_logits.extend(test_output_metrics[-1][test_index])
+        test_labels.extend(labels[test_index])
         
         output_metrics.append(test_output_metrics)
         if i == 0 : 
@@ -118,9 +117,8 @@ def main(args):
         f.write("%i Fold Cross Validation F1 = %2.2f \u00B1 %2.2f \n" %(args.n_splits , np.mean(F1)*100 , np.std(F1)*100))
         f.write('-------------------------\n')
 
-    print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
-
-    joblib.dump(mlb, args.output + '/multilabel_binarizer.pkl')
+    print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(5 , np.mean(accuracy)*100 , np.std(accuracy)*100))
+    print("%i Fold Cross Validation F1 = %2.2f \u00B1 %2.2f" %(5 , np.mean(F1)*100 , np.std(F1)*100))
     
     # Get the current date
     current_date = datetime.now()
@@ -134,26 +132,24 @@ def main(args):
     torch.save({
         'model_state_dict': best_model.state_dict(),
         # You can add more information to save, such as training history, hyperparameters, etc.
-    }, f'{save_path}GCN_MMAE_model_{month}{day}' )
+    }, f'{save_path}GCN_MME_model_{month}{day}' )
     
     if args.no_output_plots : 
-        cmplt = confusion_matrix(g , h , subjects_list , device , best_model , node_subjects , mlb)
+        cmplt = confusion_matrix(test_logits , test_labels , meta.astype('category').cat.categories)
         plt.title('Test Accuracy = %2.1f %%' % (np.mean(accuracy)*100))
         output_file = args.output + '/' + "confusion_matrix.png"
         plt.savefig(output_file , dpi = 300)
         
-        precision_recall_plot , all_predictions_conf = AUROC(g , h , subjects_list , device , best_model , node_subjects , mlb)
+        precision_recall_plot , all_predictions_conf = AUROC(test_logits, test_labels , meta)
         output_file = args.output + '/' + "precision_recall.png"
         precision_recall_plot.savefig(output_file , dpi = 300)
-        
-        all_predictions = []
-        for pred , max_pred in zip(all_predictions_conf , np.max(all_predictions_conf, axis=1)) : 
-            all_predictions.append(list(pred == max_pred))
-        node_predictions = mlb.inverse_transform(np.array(all_predictions))
 
-        node_predictions = [i[0] for i in node_predictions]
+        node_predictions = []
+        display_label = meta.astype('category').cat.categories
+        for pred in all_predictions_conf.argmax(1)  : 
+            node_predictions.append(display_label[pred])
 
-        pd.DataFrame({'Actual' : meta.loc[pd.Series(nx.get_node_attributes(g , 'idx'))] , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
+        pd.DataFrame({'Actual' : meta.loc[list(nx.get_node_attributes(g, 'idx').keys())] , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
 
         
 def construct_parser():
