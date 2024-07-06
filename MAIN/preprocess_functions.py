@@ -279,13 +279,15 @@ def knn_graph_generation(datExpr , datMeta , knn = 20 , method = 'euclidean' ,ex
 
     return G
 
-def get_k_neighbors(matrix, k):
+def get_k_neighbors(matrix, k , corr=True):
     
     dist_mtx = scipy.spatial.distance_matrix(matrix.values ,  matrix.values)
     dist_mtx = pd.DataFrame(dist_mtx , index = matrix.index , columns = matrix.index)
+    #if corr == True : 
+    #    matrix.loc[: , :] = 1 - matrix.values
     
     k_neighbors = {}
-    for node in dist_mtx.index:
+    for node in dist_mtx:
         neighbors = dist_mtx.loc[node].nsmallest(k + 1).index.tolist()[1:]  # Exclude the node itself
         k_neighbors[node] = neighbors
         
@@ -318,4 +320,93 @@ def plot_knn_network(data , K , labels ,  node_colours = 'skyblue' , node_size =
     plt.legend(handles=patches)
     plt.show()
     
-    return G 
+    return G
+
+def check_wall_names(wall):
+    def name_match(names_a, names_b):
+        return np.array_equal(names_a, names_b)
+
+    first_names_a, first_names_b = wall[0].index , wall[0].columns
+    return all(name_match(w.index, first_names_a) and name_match(w.columns, first_names_b) for w in wall)
+
+def normalize(x):
+    row_sum_mdiag = np.sum(x, axis=1) - np.diag(x)
+    row_sum_mdiag[row_sum_mdiag == 0] = 1
+    x = x / (2 * (row_sum_mdiag))
+    np.fill_diagonal(x, 0.5)
+    return x
+
+def SNF(networks, K=15, t=10):
+    wall = networks.copy()
+    wall_name_check = check_wall_names(wall)
+    wall_names = wall[0].index , wall[0].columns  # Assuming wall_names are indices corresponding to dimnames in R
+
+    if not wall_name_check:
+        print("Dim names not consistent across all matrices in wall.\nReturned matrix will have no dim names.")
+
+    lw = len(wall)
+    for i in range(lw):
+        wall[i] = normalize(convert_dataframe_to_numpy(wall[i]))
+        wall[i] = (wall[i] + wall[i].T) / 2
+
+    new_w = [dominateset(w, K) for w in wall]  # You need to implement this function
+
+    for _ in range(t):
+        next_w = []
+        for j in range(lw):
+            sum_wj = np.zeros_like(wall[j])
+            for k in range(lw):
+                if k != j:
+                    sum_wj += wall[k]
+            next_w.append(new_w[j] @ (sum_wj / (lw - 1)) @ new_w[j].T)
+        
+        for j in range(lw):
+            wall[j] = normalize(next_w[j])
+            wall[j] = (wall[j] + wall[j].T) / 2
+
+    w = np.zeros_like(wall[0])
+    for m in wall:
+        w += m
+    w /= lw
+    w = normalize(w)
+    w = (w + w.T) / 2
+
+    if wall_name_check:
+        w = pd.DataFrame(data=w , index=wall_names[0] , columns=wall_names[1])   # Not valid Python, handling similar to dimnames needs custom structuring
+
+    return w
+
+def dominateset(xx, KK=20):
+    """
+    This function outputs the matrix with the top KK neighbors kept per row.
+    All other elements in each row are set to zero, then the matrix is normalized per row.
+    """
+    def zero(x):
+        sorted_indices = np.argsort(x)  # Get indices that would sort x
+        x[sorted_indices[:-KK]] = 0     # Set all but the top KK values to zero
+        return x
+    
+    def normalize(X):
+        row_sums = X.sum(axis=1)
+        row_sums[row_sums == 0] = 1     # To avoid division by zero
+        return X / row_sums[:, np.newaxis]
+    
+    A = np.zeros_like(xx)
+    for i in range(A.shape[0]):
+        A[i, :] = zero(xx[i, :].copy())  # Use copy to avoid modifying the original matrix
+    
+    return normalize(A)
+
+def convert_dataframe_to_numpy(input_data):
+    """
+    Checks if the input is a pandas DataFrame and converts it to a numpy array if true.
+    
+    :param input_data: The data to be checked and potentially converted
+    :return: A numpy array of the DataFrame if input is a DataFrame, otherwise None
+    """
+    if isinstance(input_data, pd.DataFrame):
+        # Convert the DataFrame to a numpy array using .to_numpy()
+        return input_data.to_numpy()
+    else:
+        #print("The provided input is not a pandas DataFrame.")
+        return input_data
