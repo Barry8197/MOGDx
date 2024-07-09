@@ -21,41 +21,34 @@ import scipy
 import matplotlib.pyplot as plt
 warnings.filterwarnings('ignore')
 
-class ElasticNetPenalty(nn.Module):
-    def __init__(self, alpha=1.0, l1_ratio=0.5):
-        super(ElasticNetPenalty, self).__init__()
+class ElasticNet(nn.Module):
+    def __init__(self, num_features, num_classes, alpha, lam):
+        super(ElasticNet, self).__init__()
+        self.linear = nn.Linear(num_features, num_classes)
         self.alpha = alpha
-        self.l1_ratio = l1_ratio
+        self.lam = lam
 
-    def forward(self, parameters):
-        l1_regularization = torch.norm(parameters, 1)
-        l2_regularization = torch.norm(parameters, 2)
-        elastic_net_penalty = self.alpha * (
-            self.l1_ratio * l1_regularization + (1 - self.l1_ratio) * l2_regularization
-        )
-        return elastic_net_penalty
+    def forward(self, X):
+        # Return logits for accuracy computation and other purposes
+        return self.linear(X)
 
+    def calculate_loss(self, logits, y):
+        log_probs = F.log_softmax(logits, dim=1)
+        likelihood = -torch.sum(y * log_probs) / y.shape[0]
+        l1_reg = torch.norm(self.linear.weight, 1)
+        l2_reg = torch.norm(self.linear.weight, 2)
+        reg = self.lam * ((1 - self.alpha) * l2_reg + self.alpha * l1_reg)
+        total_loss = likelihood + reg
+        return total_loss
 
-class ElasticNetModel(torch.nn.Module) : 
-    
-    def __init__(self , input_dim , output_dim) : 
-        super().__init__()
-        
-        self.linear = torch.nn.Sequential(
-            nn.Linear(input_dim , output_dim), 
-            nn.BatchNorm1d(output_dim)  
-        )
-        
-    def forward(self , x) : 
-        
-        x = self.linear(x)
-        
-        return x
+    def accuracy(self, logits, y):
+        _, predicted = torch.max(logits, dim=1)
+        correct = predicted.eq(y.max(dim=1)[1]).sum().item()
+        return correct / y.size(0)
 
-def elastic_net(count_mtx , datMeta , n_feats , train_index = None , val_index = None , l1_ratio = 0.7 , num_epochs=1000 , device='cuda') : 
+def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1_ratio = 1 , num_epochs=1000 , device='cuda') : 
     # Initialize your model and the ElasticNet regularization term
-    model = ElasticNetModel(input_dim=count_mtx.shape[1] , output_dim=5).to(device)
-    penalty = ElasticNetPenalty(alpha=0.05, l1_ratio=l1_ratio).to(device)
+    model = ElasticNet(num_features=count_mtx.shape[1], num_classes=len(datMeta.unique()), alpha=l1_ratio, lam=0.01).to(device)
 
     # Define your loss function with ElasticNet regularization
     criterion = nn.CrossEntropyLoss()
@@ -75,8 +68,8 @@ def elastic_net(count_mtx , datMeta , n_feats , train_index = None , val_index =
     losses = torch.Tensor([]).to(device)
     for epoch in range(num_epochs):
         optimizer.zero_grad()
-        outputs = model(x_train)
-        loss = criterion(outputs, y_train) + penalty(model.linear[0].weight)
+        logits = model(x_train)
+        loss = model.calculate_loss(logits, y_train)
         loss.backward()
         optimizer.step()
 
@@ -93,13 +86,17 @@ def elastic_net(count_mtx , datMeta , n_feats , train_index = None , val_index =
     # Close tqdm for epochs
     epoch_progress.close()
     
-    outputs = model(x_train)
-    score = ((outputs.argmax(1) == y_train.argmax(1)).sum()/len(y_train))
+    logits = model(x_train)
+    score = model.accuracy(logits, y_train)
     print('Model score : %1.3f' % score)
     
-    extracted_feats = count_mtx.columns[abs(model.linear[0].weight.sum(0)).topk(n_feats)[1].detach().cpu().numpy()]
+    extracted_feats = []
+    for weight in model.linear.weight.cpu().detach().numpy() : 
+        mu = np.mean(weight)
+        std = np.std(weight)
+        extracted_feats.extend(count_mtx.columns[abs(weight) > mu + std])
     
-    return extracted_feats , model , penalty
+    return extracted_feats , model 
 
 def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None) : 
     
