@@ -113,6 +113,9 @@ def main(args):
         torch.cuda.empty_cache()
         print('Clearing gpu memory')
         get_gpu_memory()
+
+    test_logits = torch.stack(test_logits)
+    test_labels = torch.stack(test_labels)
             
     # Save the output metrics to a file   
     accuracy = []
