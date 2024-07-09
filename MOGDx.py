@@ -24,9 +24,8 @@ print("Finished Library Import \n")
 def main(args): 
     
     # Check if output directory exists, if not create it
-    output_dir = str(args.output) + "_".join(sorted(args.modalities)) + "/"                                     
-    if not os.path.exists(output_dir) : 
-        os.makedirs(output_dir, exist_ok=True)
+    if not os.path.exists(args.output) : 
+        os.makedirs(args.output, exist_ok=True)
         
     # Specify the device to use
     device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
