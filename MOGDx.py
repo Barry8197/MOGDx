@@ -24,8 +24,9 @@ print("Finished Library Import \n")
 def main(args): 
     
     # Check if output directory exists, if not create it
-    if not os.path.exists(args.output) : 
-        os.makedirs(args.output, exist_ok=True)
+    output_dir = str(args.output) + "_".join(sorted(args.modalities)) + "/"                                     
+    if not os.path.exists(output_dir) : 
+        os.makedirs(output_dir, exist_ok=True)
         
     # Specify the device to use
     device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
@@ -33,10 +34,11 @@ def main(args):
     get_gpu_memory()
 
     # Load data and metadata
-    datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col)
+    input_dir = str(args.input) + 'raw/'
+    datModalities , meta = data_parsing(input_dir , args.modalities , args.target , args.index_col)
 
     # Load SNF graph
-    graph_file = args.input + '/' + '_'.join(args.modalities) + '_graph.graphml'
+    graph_file = args.input + 'Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
     g = nx.read_graphml(graph_file)
 
     meta = meta.loc[sorted(meta.index)]
@@ -67,7 +69,7 @@ def main(args):
     for i, (train_index, test_index) in enumerate(skf.split(meta.index, meta)) :
 
         # Initialize model
-        model = GCN_MME(MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats  , len(node_subjects.unique())).to(device)
+        model = GCN_MME(MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique())).to(device)
         print(model)
         print(g)
 
@@ -209,21 +211,21 @@ def construct_parser():
                         'Leave blank if none.')
     parser.add_argument('--n-splits' , default=10 , type=int, help='Number of K-Fold'
                         'splits to use')
-    parser.add_argument('--h-feats' , default=64 , type=int , help ='Integer specifying hidden dim of GNN'
-                        'specifying GNN layer size')
     parser.add_argument('--decoder-dim' , default=64 , type=int , help ='Integer specifying dim of common '
                         'layer to all modalities')
     #parser.add_argument('--layers' , default=[64 , 64], nargs="+" , type=int , help ='List of integrs'
     #                    'specifying GNN layer sizes')
     #parser.add_argument('--layer-activation', default=['elu' , 'elu'] , nargs="+" , type=str , help='List of activation'
     #                    'functions for each GNN layer')
-
+    
+    parser.add_argument('--h-feats', required=True, nargs="+" ,type=int , help ='Integer specifying hidden dim of GNN'
+                    'specifying GNN layer size')
     parser.add_argument('-i', '--input', required=True, help='Path to the '
                         'input data for the model to read')
     parser.add_argument('-o', '--output', required=True, help='Path to the '
                         'directory to write output to')
-    parser.add_argument('-mod', '--modalities', required=True, help='Name of the'
-                        'modalities to include in the integration. Must be a list of strings')
+    parser.add_argument('-mod', '--modalities', required=True, nargs="+" , type=str , help='List of the'
+                        'modalities to include in the integration')
     parser.add_argument('-ld' , '--latent-dim', required=True, nargs="+", type=int , help='List of integers '
                         'corresponding to the length of hidden dims of each data modality')
     parser.add_argument('--target' , required = True , help='Column name referring to the'
