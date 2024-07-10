@@ -164,11 +164,13 @@ def main(args):
         precision_recall_plot.savefig(output_file , dpi = 300)
 
         node_predictions = []
+        node_actual = []
         display_label = meta.astype('category').cat.categories
-        for pred in all_predictions_conf.argmax(1)  : 
+        for pred , true in zip(all_predictions_conf.argmax(1) , test_labels.cpu().detach().numpy().argmax(1))  : 
             node_predictions.append(display_label[pred])
+            node_actual.append(display_label[true])
 
-        pd.DataFrame({'Actual' : meta.loc[list(nx.get_node_attributes(g, 'idx').keys())] , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
+        pd.DataFrame({'Actual' :node_actual , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
 
         
 def construct_parser():
