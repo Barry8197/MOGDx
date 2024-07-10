@@ -46,9 +46,9 @@ class ElasticNet(nn.Module):
         correct = predicted.eq(y.max(dim=1)[1]).sum().item()
         return correct / y.size(0)
 
-def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1_ratio = 1 , num_epochs=1000 , device='cuda') : 
+def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1_ratio = 1 , num_epochs=1000 , lam = 0.01 , device='cuda') : 
     # Initialize your model and the ElasticNet regularization term
-    model = ElasticNet(num_features=count_mtx.shape[1], num_classes=len(datMeta.unique()), alpha=l1_ratio, lam=0.01).to(device)
+    model = ElasticNet(num_features=count_mtx.shape[1], num_classes=len(datMeta.unique()), alpha=l1_ratio, lam=lam).to(device)
 
     # Define your loss function with ElasticNet regularization
     criterion = nn.CrossEntropyLoss()
@@ -98,7 +98,7 @@ def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1
     
     return extracted_feats , model 
 
-def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None) : 
+def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None , fit_type='parametric') : 
     
     datMeta = datMeta.reset_index()
     datMeta.index = datMeta['index']
@@ -128,8 +128,8 @@ def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None) :
         results = results[results['padj'] < 0.05]
         top_genes.extend(list(results.sort_values('padj').index[:n_genes]))
         
-    DeseqDataSet.vst_fit(dds)
-    vsd = DeseqDataSet.vst_transform(dds)
+    DeseqDataSet.vst(dds , fit_type = fit_type)
+    vsd = dds.layers["vst_counts"]
         
     return dds , vsd , top_genes
 
