@@ -24,9 +24,8 @@ print("Finished Library Import \n")
 def main(args): 
     
     # Check if output directory exists, if not create it
-    output_dir = str(args.output) + "_".join(sorted(args.modalities)) + "/"                                     
-    if not os.path.exists(output_dir) : 
-        os.makedirs(output_dir, exist_ok=True)
+    if not os.path.exists(args.output) : 
+        os.makedirs(args.output, exist_ok=True)
         
     # Specify the device to use
     device = torch.device('cpu' if args.no_cuda else 'cuda') # Get GPU device name, else use CPU
@@ -113,6 +112,9 @@ def main(args):
         torch.cuda.empty_cache()
         print('Clearing gpu memory')
         get_gpu_memory()
+
+    test_logits = torch.stack(test_logits)
+    test_labels = torch.stack(test_labels)
             
     # Save the output metrics to a file   
     accuracy = []
@@ -162,11 +164,13 @@ def main(args):
         precision_recall_plot.savefig(output_file , dpi = 300)
 
         node_predictions = []
+        node_actual = []
         display_label = meta.astype('category').cat.categories
-        for pred in all_predictions_conf.argmax(1)  : 
+        for pred , true in zip(all_predictions_conf.argmax(1) , test_labels.cpu().detach().numpy().argmax(1))  : 
             node_predictions.append(display_label[pred])
+            node_actual.append(display_label[true])
 
-        pd.DataFrame({'Actual' : meta.loc[list(nx.get_node_attributes(g, 'idx').keys())] , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
+        pd.DataFrame({'Actual' :node_actual , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
 
         
 def construct_parser():
