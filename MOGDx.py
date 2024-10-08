@@ -193,7 +193,7 @@ def main(args):
             node_predictions.append(display_label[pred])
             node_true.append(display_label[true])
 
-        pd.DataFrame({'Actual' :node_actual , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
+        pd.DataFrame({'Actual' :node_true , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
 
         
 def construct_parser():
