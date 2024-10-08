@@ -10,7 +10,7 @@ from train import *
 import preprocess_functions
 
 import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedKFold 
+from sklearn.model_selection import StratifiedKFold , train_test_split
 import networkx as nx
 import torch
 from datetime import datetime
@@ -42,6 +42,21 @@ def main(args):
 
     meta = meta.loc[sorted(meta.index)]
 
+    # Get the unique labels in the metadata
+    label = F.one_hot(torch.Tensor(list(meta.astype('category').cat.codes)).to(torch.int64))
+
+    MME_input_shapes = [ datModalities[mod].shape[1] for mod in datModalities]
+
+    h = reduce(merge_dfs , list(datModalities.values()))
+    h = h.loc[sorted(h.index)]
+
+    g = dgl.from_networkx(g , node_attrs=['idx' , 'label'])
+    g.ndata['feat'] = torch.Tensor(h.to_numpy())
+    g.ndata['label'] = label
+
+    del datModalities
+    gc.collect()
+    
     # Generate K Fold splits
     if args.no_shuffle : 
         skf = StratifiedKFold(n_splits=args.n_splits , shuffle=False) 
@@ -49,17 +64,6 @@ def main(args):
         skf = StratifiedKFold(n_splits=args.n_splits , shuffle=True) 
 
     print(skf)
-
-    # Order model inputs and identify subjects in each modality
-    subjects_list = [list(set(g.nodes) & set(datModalities[mod].index)) for mod in datModalities]
-    h = [torch.from_numpy(datModalities[mod].loc[subjects_list[i]].to_numpy(dtype=np.float32)).to(device) for i , mod in enumerate(datModalities) ]
-    MME_input_shapes = [ datModalities[mod].shape[1] for mod in datModalities]
-    
-    del datModalities
-    gc.collect()
-
-    # Get the unique labels in the metadata
-    labels = F.one_hot(torch.Tensor(list(meta.astype('category').cat.codes)).to(torch.int64)).to(device)
 
     output_metrics = []
     test_logits = []
@@ -71,6 +75,8 @@ def main(args):
         model = GCN_MME(MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique())).to(device)
         print(model)
         print(g)
+        
+        g = g.to(device)
 
          # Split training data into training and validation sets
         train_index , val_index = train_test_split(
@@ -78,15 +84,32 @@ def main(args):
             )
 
         # Train the model
-        loss_plot = train(g, h , subjects_list , train_index , val_index , device ,  model , labels , 2000 , 1e-3 , 100)
+        loss_plot = train(g, train_index , val_index , device ,  model , label , 2000 , 1e-3 , 100)
         plt.title(f'Loss for split {i}')
         save_path = args.output + '/loss_plots/'
         os.makedirs(save_path, exist_ok=True)
         plt.savefig(f'{save_path}loss_split_{i}.png' , dpi = 200)
         plt.clf()
+        
+        sampler = NeighborSampler(
+            [15 for i in range(len(model.gnnlayers))],  # fanout for each layer
+            prefetch_node_feats=['feat'],
+            prefetch_labels=['label'],
+        )
+        test_dataloader = DataLoader(
+            g,
+            torch.Tensor(test_index).to(torch.int64).to(device),
+            sampler,
+            device=device,
+            batch_size=1024,
+            shuffle=True,
+            drop_last=False,
+            num_workers=0,
+            use_uva=False,
+        )
 
         # Evaluate the model
-        test_output_metrics = evaluate(test_index , device , g , h , subjects_list , model , labels )
+        test_output_metrics = evaluate(model , g , test_dataloader )
 
         print(
             "Fold : {:01d} | Test Accuracy = {:.4f} | F1 = {:.4f} ".format(
@@ -94,8 +117,8 @@ def main(args):
         )
         
         # Save the test logits and labels for later analysis
-        test_logits.extend(test_output_metrics[-1][test_index])
-        test_labels.extend(labels[test_index])
+        test_logits.extend(test_output_metrics[-2])
+        test_labels.extend(test_output_metrics[-1])
         
         # Save the output metrics and best performing model
         output_metrics.append(test_output_metrics)
@@ -164,11 +187,11 @@ def main(args):
         precision_recall_plot.savefig(output_file , dpi = 300)
 
         node_predictions = []
-        node_actual = []
+        node_true        = []
         display_label = meta.astype('category').cat.categories
-        for pred , true in zip(all_predictions_conf.argmax(1) , test_labels.cpu().detach().numpy().argmax(1))  : 
+        for pred , true in zip(all_predictions_conf.argmax(1) , list(test_labels.detach().cpu().argmax(1).numpy()))  : 
             node_predictions.append(display_label[pred])
-            node_actual.append(display_label[true])
+            node_true.append(display_label[true])
 
         pd.DataFrame({'Actual' :node_actual , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
 
