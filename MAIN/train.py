@@ -1,23 +1,51 @@
 import torch
 import torch.optim as optim
 import torch.nn as nn
-from sklearn.model_selection import train_test_split
 import sklearn as sk
-import seaborn as sns
 from sklearn.metrics import precision_recall_curve , average_precision_score , recall_score ,  PrecisionRecallDisplay
 from itertools import cycle
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import networkx as nx
+from dgl.dataloading import DataLoader, NeighborSampler
+import tqdm
+from sklearn.manifold import TSNE
+import seaborn as sns
 
-
-def train(g, h , subjects_list , train_split , val_split , device ,  model , labels , epochs , lr , patience):
+def train(g, train_index , val_index, device ,  model , labels , epochs , lr , patience):
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr , weight_decay=1e-4)
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+    
+    sampler = NeighborSampler(
+        [15 for i in range(len(model.gnnlayers))],  # fanout for each layer
+        prefetch_node_feats=['feat'],
+        prefetch_labels=['label'],
+    )
+    train_dataloader = DataLoader(
+        g,
+        torch.Tensor(train_index).to(torch.int64).to(device),
+        sampler,
+        device=device,
+        batch_size=1024,
+        shuffle=True,
+        drop_last=False,
+        num_workers=0,
+        use_uva=False,
+    )
+
+    val_dataloader = DataLoader(
+        g,
+        torch.Tensor(val_index).to(torch.int64).to(device),
+        sampler,
+        device=device,
+        batch_size=1024,
+        shuffle=True,
+        drop_last=False,
+        num_workers=0,
+        use_uva=False,
+    )
 
     best_val_loss = float('inf')
     consecutive_epochs_without_improvement = 0
@@ -29,26 +57,33 @@ def train(g, h , subjects_list , train_split , val_split , device ,  model , lab
     train_acc = 0
     for epoch in range(epochs):
         model.train()
+        total_loss = 0
+        
+        for it, (input_nodes, output_nodes, blocks) in enumerate(
+            train_dataloader
+        ): 
+            x = blocks[0].srcdata["feat"]
+            y = blocks[-1].dstdata["label"]
+            logits = model(blocks, x)
 
-        logits  = model(g , h , subjects_list , device)
+            loss = loss_fcn(logits, y.float())
 
-        loss = loss_fcn(logits[train_split], labels[train_split].float())
+            _, predicted = torch.max(logits, 1)
 
-        _, predicted = torch.max(logits[train_split], 1)
+            _, true = torch.max(y , 1)
 
-        _, true = torch.max(labels[train_split] , 1)
-
-        train_acc = (predicted == true).float().mean().item()
-        train_loss.append(loss.item())
-
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
-        scheduler.step()
+            train_acc = (predicted == true).float().mean().item()
+            total_loss += loss.item()
+            
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            
+        train_loss.append(total_loss)
         
         if (epoch % 5) == 0 : 
-            valid_loss , valid_acc , *_ = evaluate(val_split, device, g , h , subjects_list , model , labels)
+            valid_loss , valid_acc , *_ = evaluate(model , g, val_dataloader)
             print(
                 "Epoch {:05d} | Loss {:.4f} | Train Acc. {:.4f} | Validation Acc. {:.4f} ".format(
                     epoch, loss.item() , train_acc, valid_acc
@@ -72,31 +107,41 @@ def train(g, h , subjects_list , train_split , val_split , device ,  model , lab
     ax.plot(train_loss  , label = 'Train Loss')
     ax.plot(range(5 , len(train_loss)+1 , 5) , val_loss  , label = 'Validation Loss')
     ax.legend()
+    
+    del train_dataloader , val_dataloader
 
     return fig
 
-def evaluate(idx, device, g , h , subjects_list , model , labels):
-    model.eval()
+def evaluate(model, graph, dataloader):
+    acc  = 0
+    loss = 0
     loss_fcn = nn.CrossEntropyLoss()
-    acc = 0
     
-    with torch.no_grad() : 
-        logits = model(g , h , subjects_list , device)
+    model.eval()
+    y = []
+    logits = []
+    for it, (input_nodes, output_nodes, blocks) in enumerate(dataloader):
+        with torch.no_grad():
+            x = blocks[0].srcdata["feat"]
+            y.append(blocks[-1].dstdata["label"])
+            
+            logits.append(model(blocks, x))
 
-        loss = loss_fcn(logits[idx], labels[idx].float())
+    logits = torch.cat(logits, dim=0)
+    y      = torch.cat(y, dim=0)
+    acc += (logits.argmax(1) == y.argmax(1)).float().mean().item()
+    loss = loss_fcn(logits, y.float())
 
-        acc += (logits[idx].argmax(1) == labels[idx].argmax(1)).float().mean().item()
-        
-        logits_out = logits[idx].cpu().detach().numpy()
-        binary_out = (logits_out == logits_out.max(1).reshape(-1,1))*1
-        
-        labels_out = labels[idx].cpu().detach().numpy()
-        
-        PRC =  average_precision_score(binary_out, labels_out , average="weighted")
-        SNS = recall_score(binary_out, labels_out , average="weighted")
-        F1 = 2*((PRC*SNS)/(PRC+SNS))
+    logits_out = logits.cpu().detach().numpy()
+    binary_out = (logits_out == logits_out.max(1).reshape(-1,1))*1
+
+    labels_out = y.cpu().detach().numpy()
+
+    PRC =  average_precision_score(binary_out, labels_out , average="weighted")
+    SNS = recall_score(binary_out, labels_out , average="weighted")
+    F1 = 2*((PRC*SNS)/(PRC+SNS))
     
-    return loss , acc , F1 , PRC , SNS , logits
+    return loss , acc , F1 , PRC , SNS , logits , y
 
             
 def confusion_matrix(logits , targets , display_labels ) : 
@@ -171,3 +216,41 @@ def AUROC(logits, targets , meta) :
     ax.set_title("Multi-class Precision-Recall curve")
     
     return fig , Y_test
+
+def layerwise_infer(device, graph, nid, model, batch_size):
+    model.eval()
+    with torch.no_grad():
+        pred = model.inference(
+            graph, graph.ndata['feat'] ,device, batch_size
+        )  # pred in buffer_device
+        pred = pred[nid].argmax(1)
+        label = graph.ndata["label"][nid].to(pred.device).argmax(1)
+        
+        return sum(pred==label)/len(pred)
+    
+def tsne_embedding_plot(emb , meta) : 
+    tsne = TSNE(n_components=2, random_state=42, learning_rate='auto', init='random')
+    embeddings_2d = tsne.fit_transform(emb)
+    
+    # Unique labels and colors
+    unique_labels = meta.unique()
+    colors = plt.cm.get_cmap('tab20', len(unique_labels))
+
+    # Map each label to a color
+    label_color_map = {label: colors(i) for i, label in enumerate(unique_labels)}
+
+    # Color each point based on its label
+    point_colors = [label_color_map[label] for label in meta]
+
+    # Create the scatter plot
+    plt.figure(figsize=(10, 8))
+    plt.scatter(embeddings_2d[:, 0], embeddings_2d[:, 1], c=point_colors, alpha=0.6, edgecolors='w', s=50)
+    plt.title('t-SNE of Model Embeddings Colored by Labels')
+    plt.xlabel('Component 1')
+    plt.ylabel('Component 2')
+    # Create a legend
+    handles = [plt.Line2D([0], [0], marker='o', color='w', markerfacecolor=label_color_map[label], markersize=10) for label in unique_labels]
+    plt.legend(handles, unique_labels, title="Labels", 
+               bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.clim(-0.5, len(unique_labels) - 0.5)
+    

@@ -4,6 +4,12 @@ import torch
 import os
 import pickle
 import networkx as nx
+from functools import reduce
+
+# Define the merge operation setup
+def merge_dfs(left_df, right_df):
+    # Merging on 'key' and expanding with 'how=outer' to include all records
+    return pd.merge(left_df, right_df, left_index=True, right_index=True, how='outer')
 
 def data_parsing(DATA_PATH , MODALITIES ,TARGET , INDEX_COL) :
     
