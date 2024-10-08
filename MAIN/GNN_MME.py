@@ -594,7 +594,7 @@ class GAT_MME(nn.Module):
         for l, layer in enumerate(self.gnnlayers[:-1]):
             y = torch.empty(
                 g.num_nodes(),
-                self.hidden_feats[l]*self.heads[l] if l != len(self.gnnlayers) - 1 else self.num_classes,
+                self.hidden_feats[l]*self.heads[l] if l != len(self.gnnlayers) - 2 else self.hidden_feats[l],
                 dtype=feat.dtype,
                 device=buffer_device,
                 pin_memory=pin_memory,
@@ -603,7 +603,7 @@ class GAT_MME(nn.Module):
             for input_nodes, output_nodes, blocks in tqdm.tqdm(dataloader):
                 x = feat[input_nodes]
                 h = layer(blocks[0], x)  # len(blocks) = 1
-                if l == len(self.gnnlayers) - 1:  # last layer
+                if l == len(self.gnnlayers) - 2:  #second last layer
                     h = h.mean(1)
                 else:  # other layer(s)
                     h = h.flatten(1)
