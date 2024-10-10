@@ -481,7 +481,6 @@ class GAT_MME(nn.Module):
         for i , (Encoder , dim) in enumerate(zip(self.encoder_dims , self.input_dims)) : 
 
             x = h[: , prev_dim:dim+prev_dim]
-            print(x.shape)
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
             encoded , decoded = Encoder(x[~nan_rows])
