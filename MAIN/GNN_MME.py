@@ -17,20 +17,32 @@ class Encoder(torch.nn.Module):
     def __init__(self , input_dim , latent_dim , output_dim):
         super().__init__()
         
+        self.encoder = nn.ModuleList()
+        self.norm   = nn.ModuleList()
     
-        self.encoder = torch.nn.Sequential(
+        self.encoder.extend([
             nn.Linear(input_dim , 500), 
+            nn.Linear(500, latent_dim)
+        ])
+        
+        self.norm.extend([
             nn.BatchNorm1d(500),
-            nn.Linear(500, latent_dim),
             nn.BatchNorm1d(latent_dim)
-        )
+        ])
         
         self.decoder = torch.nn.Sequential(
             nn.Linear(latent_dim, output_dim),
         )
+        
+        self.drop = nn.Dropout(0.5) 
 
     def forward(self, x):
-        encoded = self.encoder(x)
+        encoded = x
+        for layer in range(2) : 
+            encoded = self.encoder[layer](encoded)
+            encoded = self.drop(encoded)
+            encoded = self.norm[layer](encoded)
+            
         decoded = self.decoder(encoded)
         
         return encoded , decoded 
@@ -63,11 +75,11 @@ class GSage_MME(nn.Module):
                     self.gnnlayers.append(
                         SAGEConv(hidden_feats[layers-1], hidden_feats[layers] , 'mean')
                     )
+                self.batch_norms.append(nn.BatchNorm1d(hidden_feats[layers]))
             else : 
                 self.gnnlayers.append(
                     SAGEConv(hidden_feats[layers-1], num_classes , 'mean')
                 )
-                self.batch_norms.append(nn.BatchNorm1d(num_classes))
                 
         self.drop = nn.Dropout(0.5)
 
@@ -102,6 +114,7 @@ class GSage_MME(nn.Module):
             h = layer(g_layer, h)
             if l != len(self.gnnlayers) - 1:
                 h = F.relu(h)
+                h = self.batch_norms[l](h)
                 h = self.drop(h)
             
         return h
@@ -256,11 +269,11 @@ class GCN_MME(nn.Module):
                     self.gnnlayers.append(
                         GraphConv(hidden_feats[layers-1], hidden_feats[layers])
                     )
+                self.batch_norms.append(nn.BatchNorm1d(hidden_feats[layers]))
             else : 
                 self.gnnlayers.append(
                     GraphConv(hidden_feats[layers-1], num_classes)
                 )
-                self.batch_norms.append(nn.BatchNorm1d(num_classes))
                 
         self.drop = nn.Dropout(0.5)
 
@@ -295,6 +308,7 @@ class GCN_MME(nn.Module):
             h = layer(g_layer, h)
             if l != len(self.gnnlayers) - 1:
                 h = F.relu(h)
+                h = self.batch_norms[l](h)
                 h = self.drop(h)
             
         return h
@@ -450,11 +464,11 @@ class GAT_MME(nn.Module):
                     self.gnnlayers.append(
                         GATConv(hidden_feats[layers-1]*heads[layers-1], hidden_feats[layers], num_heads=heads[layers])
                     )
+                self.batch_norms.append(nn.BatchNorm1d(hidden_feats[layers]*heads[layers]))
             else : 
                 self.gnnlayers.append(
                     GATConv(hidden_feats[layers-1]*heads[layers-1], num_classes, num_heads=heads[layers])
                 )
-                self.batch_norms.append(nn.BatchNorm1d(num_classes))
                 
         self.drop = nn.Dropout(0.5)
 
@@ -467,6 +481,7 @@ class GAT_MME(nn.Module):
         for i , (Encoder , dim) in enumerate(zip(self.encoder_dims , self.input_dims)) : 
 
             x = h[: , prev_dim:dim+prev_dim]
+            print(x.shape)
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
             encoded , decoded = Encoder(x[~nan_rows])
@@ -491,6 +506,7 @@ class GAT_MME(nn.Module):
                 h = h.mean(1)
             else:  # other layer(s)
                 h = h.flatten(1)
+                h = self.batch_norms[l](h)
             
         return h
     
