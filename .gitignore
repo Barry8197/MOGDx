@@ -1,2 +1,10 @@
 *.ipynb_checkpoints*
 *__pycache__*
+Output/*
+Output
+*slurm*
+*.csv
+*.txt
+cleanup.py
+modality_expts.ipynb
+*Results*
