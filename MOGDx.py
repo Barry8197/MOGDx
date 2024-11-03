@@ -21,7 +21,12 @@ warnings.filterwarnings("ignore")
 
 print("Finished Library Import \n")
 
+import time
+
 def main(args): 
+
+    # Start the timer
+    start_time = time.time()
     
     # Check if output directory exists, if not create it
     if not os.path.exists(args.output) : 
@@ -194,6 +199,13 @@ def main(args):
             node_true.append(display_label[true])
 
         pd.DataFrame({'Actual' :node_true , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
+
+    # Stop the timer
+    end_time = time.time()
+
+    # Calculate and print the elapsed time
+    elapsed_time = (end_time - start_time)/60
+    print(f"Elapsed time: {elapsed_time} minutes")
 
         
 def construct_parser():
