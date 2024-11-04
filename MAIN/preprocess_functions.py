@@ -54,7 +54,7 @@ def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1
     criterion = nn.CrossEntropyLoss()
 
     # Define your optimizer
-    optimizer = optim.SGD(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.01)
     
     scaler = StandardScaler()
 
