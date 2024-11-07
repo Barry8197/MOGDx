@@ -142,6 +142,8 @@ class GSage_MME(nn.Module):
 
             node_features += decoded_imputed
 
+            prev_dim += dim
+
         h = node_features/(i+1)
 
         sampler = MultiLayerFullNeighborSampler(1, prefetch_node_feats=["feat"])
@@ -202,6 +204,8 @@ class GSage_MME(nn.Module):
             decoded_imputed = torch.concat([decoded , torch.median(decoded, dim=0).values.repeat(n).reshape(n , decoded.shape[1])])[reindex]
 
             node_features += decoded_imputed
+
+            prev_dim += dim
 
         h = node_features/(i+1)
 
@@ -336,6 +340,8 @@ class GCN_MME(nn.Module):
 
             node_features += decoded_imputed
 
+            prev_dim += dim
+
         h = node_features/(i+1)
 
         sampler = MultiLayerFullNeighborSampler(1, prefetch_node_feats=["feat"])
@@ -396,6 +402,8 @@ class GCN_MME(nn.Module):
             decoded_imputed = torch.concat([decoded , torch.median(decoded, dim=0).values.repeat(n).reshape(n , decoded.shape[1])])[reindex]
 
             node_features += decoded_imputed
+
+            prev_dim += dim
 
         h = node_features/(i+1)
 
@@ -532,6 +540,8 @@ class GAT_MME(nn.Module):
 
             node_features += decoded_imputed
 
+            prev_dim += dim
+
         h = node_features/(i+1)
 
         sampler = MultiLayerFullNeighborSampler(1, prefetch_node_feats=["feat"])
@@ -593,6 +603,8 @@ class GAT_MME(nn.Module):
             decoded_imputed = torch.concat([decoded , torch.median(decoded, dim=0).values.repeat(n).reshape(n , decoded.shape[1])])[reindex]
 
             node_features += decoded_imputed
+
+            prev_dim += dim
 
         h = node_features/(i+1)
 
