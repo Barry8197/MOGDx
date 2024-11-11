@@ -10,8 +10,10 @@ from dgl.dataloading import DataLoader, NeighborSampler
 import tqdm
 from sklearn.manifold import TSNE
 import seaborn as sns
+sys.path.insert(0 , 'MAIN')
+from preprocess_functions import gen_new_graph
 
-def train(g, train_index, device ,  model , labels , epochs , lr , patience):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False):
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
@@ -95,7 +97,19 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience):
     
     del train_dataloader
 
-    return fig
+    if pretrain : 
+        G = gen_new_graph(model , h , subjects_list , meta)
+        
+        del optimizer , scheduler , model
+        
+        with torch.no_grad():
+            torch.cuda.empty_cache()
+        gc.collect()
+        
+        return G 
+    
+    else : 
+        return fig 
 
 def evaluate(model, graph, dataloader):
     acc  = 0

@@ -432,3 +432,56 @@ def convert_dataframe_to_numpy(input_data):
     else:
         #print("The provided input is not a pandas DataFrame.")
         return input_data
+    
+def gen_new_graph(model , h , subjects_list , meta) : 
+    model.eval()
+    ordered_nodes = pd.Series(sorted(set().union(*subjects_list))).astype(str)
+    
+    full_graphs = []
+    K = 15
+    
+    for i , encoding_model in enumerate(model.encoder_dims) : 
+        #feats = np.argsort(abs(encoding_model.encoder[0].weight.mean(axis =0)).detach().cpu().numpy())
+        #lin_features = h[i][: , feats[-int(len(feats)*0.1):]].detach().cpu().numpy()
+        
+        lin_features = (h[i] @ encoding_model.encoder[0].weight.T).detach().cpu().numpy()
+                
+        mat = pd.DataFrame(data = lin_features , index=subjects_list[i])
+        node_labels = pd.Series(mat.index)
+
+        adj = create_similarity_matrix(mat.reset_index(drop=True) , 'pearson')
+        
+        # Get k-nearest neighbors for each node (k=20 in this example)
+        k_neighbors = get_k_neighbors(adj, k=K)
+
+        # Create a NetworkX graph
+        G = nx.Graph()
+
+        # Add nodes to the graph
+        G.add_nodes_from(adj.index)
+
+        # Add edges based on the k-nearest neighbors
+        for node, neighbors in k_neighbors.items():
+            for neighbor in neighbors:
+                G.add_edge(node, neighbor)
+
+        df_full = pd.DataFrame(index=ordered_nodes , columns=ordered_nodes).fillna(0)
+        df_tmp = nx.to_pandas_adjacency(G)
+        df_tmp.index = node_labels
+        df_tmp.columns = node_labels
+
+        df_full.loc[df_tmp.index , df_tmp.columns] = df_tmp.values
+
+        full_graphs.append(df_full)
+
+    if len(full_graphs) > 1 : 
+        adj_snf = SNF(full_graphs)
+    else : 
+        adj_snf = full_graphs[0]
+
+    node_colour = meta.loc[adj_snf.index].astype('category').cat.set_categories(wesanderson.FantasticFox2_5.hex_colors , rename=True)
+    
+    G = plot_knn_network(adj_snf , K , meta.loc[adj_snf.index] ,
+                                                   node_colours=node_colour , node_size=150)
+            
+    return G
