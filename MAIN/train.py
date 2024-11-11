@@ -11,7 +11,7 @@ import tqdm
 from sklearn.manifold import TSNE
 import seaborn as sns
 
-def train(g, train_index , val_index, device ,  model , labels , epochs , lr , patience):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience):
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
@@ -35,29 +35,17 @@ def train(g, train_index , val_index, device ,  model , labels , epochs , lr , p
         use_uva=False,
     )
 
-    val_dataloader = DataLoader(
-        g,
-        torch.Tensor(val_index).to(torch.int64).to(device),
-        sampler,
-        device=device,
-        batch_size=1024,
-        shuffle=True,
-        drop_last=False,
-        num_workers=0,
-        use_uva=False,
-    )
-
-    best_val_loss = float('inf')
+    best_loss = float('inf')
     consecutive_epochs_without_improvement = 0
     
     train_loss = []
-    val_loss   = []
 
     # training loop
     train_acc = 0
     for epoch in range(epochs):
         model.train()
         total_loss = 0
+        train_acc  = 0
         
         for it, (input_nodes, output_nodes, blocks) in enumerate(
             train_dataloader
@@ -72,7 +60,7 @@ def train(g, train_index , val_index, device ,  model , labels , epochs , lr , p
 
             _, true = torch.max(y , 1)
 
-            train_acc = (predicted == true).float().mean().item()
+            train_acc += (predicted == true).float().mean().item()
             total_loss += loss.item()
             
             optimizer.zero_grad()
@@ -80,35 +68,32 @@ def train(g, train_index , val_index, device ,  model , labels , epochs , lr , p
             optimizer.step()
             scheduler.step()
             
-        train_loss.append(total_loss)
+        train_loss.append(total_loss/(it+1))
+        train_acc = train_acc/(it+1)
         
         if (epoch % 5) == 0 : 
-            valid_loss , valid_acc , *_ = evaluate(model , g, val_dataloader)
             print(
-                "Epoch {:05d} | Loss {:.4f} | Train Acc. {:.4f} | Validation Acc. {:.4f} ".format(
-                    epoch, loss.item() , train_acc, valid_acc
+                "Epoch {:05d} | Loss {:.4f} | Train Acc. {:.4f} | ".format(
+                    epoch, train_loss[-1] , train_acc
                 )
             )
 
-            # Check for early stopping
-            if valid_loss < best_val_loss:
-                best_val_loss = valid_loss
-                consecutive_epochs_without_improvement = 0
-            else:
-                consecutive_epochs_without_improvement += 1
+        # Check for early stopping
+        if train_loss[-1] < best_loss:
+            best_loss = train_loss[-1]
+            consecutive_epochs_without_improvement = 0
+        else:
+            consecutive_epochs_without_improvement += 1
 
-            if consecutive_epochs_without_improvement >= patience:
-                print(f"Early stopping! No improvement for {patience} consecutive epochs.")
-                break
-
-            val_loss.append(valid_loss.item())
+        if consecutive_epochs_without_improvement >= patience:
+            print(f"Early stopping! No improvement for {patience} consecutive epochs.")
+            break
 
     fig , ax = plt.subplots(figsize=(6,4))
     ax.plot(train_loss  , label = 'Train Loss')
-    ax.plot(range(5 , len(train_loss)+1 , 5) , val_loss  , label = 'Validation Loss')
     ax.legend()
     
-    del train_dataloader , val_dataloader
+    del train_dataloader
 
     return fig
 

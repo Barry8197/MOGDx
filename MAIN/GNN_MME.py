@@ -176,6 +176,7 @@ class GSage_MME(nn.Module):
                 h = layer(blocks[0], x)  # len(blocks) = 1
                 if l != len(self.gnnlayers) - 1:
                     h = F.relu(h)
+                    h = self.batch_norms[l](h)
                     h = self.drop(h)
                 # by design, our output nodes are contiguous
                 y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
@@ -239,6 +240,7 @@ class GSage_MME(nn.Module):
                 h = layer(blocks[0], x)  # len(blocks) = 1
                 if l != len(self.gnnlayers) - 1:
                     h = F.relu(h)
+                    h = self.batch_norms[l](h)
                     h = self.drop(h)
                 # by design, our output nodes are contiguous
                 y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
@@ -374,6 +376,7 @@ class GCN_MME(nn.Module):
                 h = layer(blocks[0], x)  # len(blocks) = 1
                 if l != len(self.gnnlayers) - 1:
                     h = F.relu(h)
+                    h = self.batch_norms[l](h)
                     h = self.drop(h)
                 # by design, our output nodes are contiguous
                 y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
@@ -437,6 +440,7 @@ class GCN_MME(nn.Module):
                 h = layer(blocks[0], x)  # len(blocks) = 1
                 if l != len(self.gnnlayers) - 1:
                     h = F.relu(h)
+                    h = self.batch_norms[l](h)
                     h = self.drop(h)
                 # by design, our output nodes are contiguous
                 y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
@@ -576,6 +580,7 @@ class GAT_MME(nn.Module):
                     h = h.mean(1)
                 else:  # other layer(s)
                     h = h.flatten(1)
+                    h = self.batch_norms[l](h)
                 # by design, our output nodes are contiguous
                 y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
             feat = y
@@ -640,6 +645,7 @@ class GAT_MME(nn.Module):
                     h = h.mean(1)
                 else:  # other layer(s)
                     h = h.flatten(1)
+                    h = self.batch_norms[l](h)
                 # by design, our output nodes are contiguous
                 y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
             feat = y

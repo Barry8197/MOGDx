@@ -83,13 +83,8 @@ def main(args):
         
         g = g.to(device)
 
-         # Split training data into training and validation sets
-        train_index , val_index = train_test_split(
-            train_index, train_size=0.8, test_size=None, stratify=meta.iloc[train_index]
-            )
-
         # Train the model
-        loss_plot = train(g, train_index , val_index , device ,  model , label , 2000 , 1e-3 , 100)
+        loss_plot = train(g, train_index, device ,  model , label , 2000 , 1e-3 , 100)
         plt.title(f'Loss for split {i}')
         save_path = args.output + '/loss_plots/'
         os.makedirs(save_path, exist_ok=True)
