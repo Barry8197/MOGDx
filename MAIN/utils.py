@@ -11,7 +11,7 @@ def merge_dfs(left_df, right_df):
     # Merging on 'key' and expanding with 'how=outer' to include all records
     return pd.merge(left_df, right_df, left_index=True, right_index=True, how='outer')
 
-def data_parsing(DATA_PATH , MODALITIES ,TARGET , INDEX_COL) :
+def data_parsing(DATA_PATH , MODALITIES ,TARGET , INDEX_COL , PROCESSED=True) :
     
     datModalities = {}
     try : 
@@ -20,8 +20,12 @@ def data_parsing(DATA_PATH , MODALITIES ,TARGET , INDEX_COL) :
         print(f'Modalities listed not found in data path {DATA_PATH}')
 
     for i, mod in enumerate(modalities) : 
-        with open(f'{DATA_PATH}/{mod}_processed.pkl' , 'rb') as file : 
-            loaded_data = pickle.load(file)
+        if PROCESSED : 
+            with open(f'{DATA_PATH}/{mod}_processed.pkl' , 'rb') as file : 
+                loaded_data = pickle.load(file)
+        else : 
+            with open(f'{DATA_PATH}/{mod}_preprocessed.pkl' , 'rb') as file : 
+                loaded_data = pickle.load(file)
             
         if i == 0 : 
             datMeta = loaded_data['datMeta'].reset_index()[[INDEX_COL , TARGET]]
