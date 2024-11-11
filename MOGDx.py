@@ -38,7 +38,6 @@ def main(args):
     get_gpu_memory()
 
     # Load data and metadata
-    input_dir = str(args.input) + 'raw/'
     datModalities , meta = data_parsing(input_dir , args.modalities , args.target , args.index_col)
 
     # Load SNF graph
