@@ -205,6 +205,8 @@ def create_similarity_matrix(mat , method = 'euclidean') :
         adj = abs_bicorr(mat.T)
     elif method == 'pearson' : 
         adj = pearson_corr(mat.T)
+    elif method == 'pearson' : 
+        adj = cosine_corr(mat.T)
     else : 
         distances = pdist(mat.values, metric='euclidean')
         dist_matrix = squareform(distances)
@@ -242,13 +244,36 @@ def pearson_corr(data, mat_means=True) :
     mat = data.to_numpy(dtype=float, na_value=np.nan, copy=False)
     mat = mat.T
     if mat_means==True : 
-        mat = mat - mat.mean(axis = 0)
+        norms = np.linalg.norm(mat, axis=1, keepdims=True)
+        mat = mat / norms
 
     K = len(cols)
     correl = np.empty((K, K), dtype=np.float32)
     mask = np.isfinite(mat)
 
     cov = np.cov(mat)
+
+    for i in range(K) : 
+        correl[i , : ] = cov[i , :] / np.sqrt(cov[i,i] * np.diag(cov))
+        
+    return pd.DataFrame(data = correl , index=idx , columns=cols , dtype=np.float32)
+
+def cosine_corr(data, mat_means=True) : 
+
+    data = data._get_numeric_data()
+    cols = data.columns
+    idx = cols.copy()
+    mat = data.to_numpy(dtype=float, na_value=np.nan, copy=False)
+    mat = mat.T
+    if mat_means==True : 
+        norms = np.linalg.norm(mat, axis=1, keepdims=True)
+        mat = mat / norms
+
+    K = len(cols)
+    correl = np.empty((K, K), dtype=np.float32)
+    mask = np.isfinite(mat)
+
+    cov = np.dot(mat, mat.T)
 
     for i in range(K) : 
         correl[i , : ] = cov[i , :] / np.sqrt(cov[i,i] * np.diag(cov))
