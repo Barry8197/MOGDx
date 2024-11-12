@@ -7,6 +7,13 @@ import torch.nn.functional as F
 from dgl.nn import GraphConv , SAGEConv, GATConv
 from dgl.dataloading import DataLoader, MultiLayerFullNeighborSampler
 import tqdm
+import sys
+orig_sys_path = sys.path[:]
+dirname = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0 , os.path.join(dirname , '../Modules/PNetTorch/MAIN'))
+from Pnet import MaskedLinear, PNET 
+sys.path = orig_sys_path
+
 
 class Encoder(torch.nn.Module):
     '''
@@ -45,7 +52,7 @@ class Encoder(torch.nn.Module):
             
         decoded = self.decoder(encoded)
         
-        return encoded , decoded 
+        return decoded 
     
 class GSage_MME(nn.Module):
     def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes):
@@ -61,9 +68,12 @@ class GSage_MME(nn.Module):
         self.num_classes = num_classes
 
         # GCN with Encoder reduced dim input and pooling scheme
-        
         for modality in range(len(input_dims)):  # excluding the input layer
-            self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
+            if PNet != None : 
+                self.encoder_dims.append(PNET(reactome_network=PNet, input_dim=input_dims[modality] , output_dim=decoder_dim, 
+                      activation = nn.ReLU , dropout=0.5 , filter_pathways=False , input_layer_mask = None))
+            else : 
+                self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
         
         for layers in range(self.num_layers) :
             if layers < self.num_layers -1 :
@@ -248,7 +258,7 @@ class GSage_MME(nn.Module):
         return y
     
 class GCN_MME(nn.Module):
-    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes):
+    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes, PNet=None):
         
         super().__init__()
         
@@ -263,7 +273,11 @@ class GCN_MME(nn.Module):
         # GCN with Encoder reduced dim input and pooling scheme
         
         for modality in range(len(input_dims)):  # excluding the input layer
-            self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
+            if PNet != None : 
+                self.encoder_dims.append(PNET(reactome_network=PNet, input_dim=input_dims[modality] , output_dim=decoder_dim, 
+                      activation = nn.ReLU , dropout=0.5 , filter_pathways=False , input_layer_mask = None))
+            else : 
+                self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
         
         for layers in range(self.num_layers) :
             if layers < self.num_layers -1 :
@@ -294,7 +308,7 @@ class GCN_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
@@ -330,7 +344,7 @@ class GCN_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
@@ -394,7 +408,7 @@ class GCN_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
@@ -462,9 +476,12 @@ class GAT_MME(nn.Module):
         self.num_classes  = num_classes
 
         # GCN with Encoder reduced dim input and pooling scheme
-        
         for modality in range(len(input_dims)):  # excluding the input layer
-            self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
+            if PNet != None : 
+                self.encoder_dims.append(PNET(reactome_network=PNet, input_dim=input_dims[modality] , output_dim=decoder_dim, 
+                      activation = nn.ReLU , dropout=0.5 , filter_pathways=False , input_layer_mask = None))
+            else : 
+                self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
         
         for layers in range(self.num_layers) :
             if layers < self.num_layers -1 :
@@ -597,7 +614,7 @@ class GAT_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))

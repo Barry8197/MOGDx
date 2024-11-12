@@ -11,8 +11,11 @@ import tqdm
 from sklearn.manifold import TSNE
 import seaborn as sns
 import sys
-sys.path.insert(0 , 'MAIN')
+import os
+orig_sys_path = sys.path[:]
+sys.path.insert(0 , os.path.dirname(os.path.abspath(__file__)))
 from preprocess_functions import gen_new_graph
+sys.path = orig_sys_path
 import gc
 
 def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False):
