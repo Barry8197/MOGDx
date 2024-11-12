@@ -13,6 +13,7 @@ import seaborn as sns
 import sys
 sys.path.insert(0 , 'MAIN')
 from preprocess_functions import gen_new_graph
+import gc
 
 def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False):
     # loss function, optimizer and scheduler
@@ -99,7 +100,7 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
     del train_dataloader
 
     if pretrain : 
-        G = gen_new_graph(model , h , subjects_list , meta)
+        G = gen_new_graph(model , g.ndata['feat'], labels)
         
         del optimizer , scheduler , model
         

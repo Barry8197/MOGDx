@@ -433,23 +433,25 @@ def convert_dataframe_to_numpy(input_data):
         #print("The provided input is not a pandas DataFrame.")
         return input_data
     
-def gen_new_graph(model , h , subjects_list , meta) : 
+def gen_new_graph(model , h, meta) : 
     model.eval()
-    ordered_nodes = pd.Series(sorted(set().union(*subjects_list))).astype(str)
     
     full_graphs = []
     K = 15
-    
-    for i , encoding_model in enumerate(model.encoder_dims) : 
+    prev_dim = 0
+
+    for i , (Encoder , dim) in enumerate(zip(model.encoder_dims , model.input_dims)) : 
         #feats = np.argsort(abs(encoding_model.encoder[0].weight.mean(axis =0)).detach().cpu().numpy())
         #lin_features = h[i][: , feats[-int(len(feats)*0.1):]].detach().cpu().numpy()
         
-        lin_features = (h[i] @ encoding_model.encoder[0].weight.T).detach().cpu().numpy()
+        x = h[: , prev_dim:dim+prev_dim]
+        nan_rows = torch.isnan(x).any(dim=1)
+        first_layer_feat = (x[~nan_rows] @ Encoder.encoder[0].weight.T).detach().cpu().numpy()
                 
-        mat = pd.DataFrame(data = lin_features , index=subjects_list[i])
+        mat = pd.DataFrame(data = first_layer_feat , index=meta.loc[~nan_rows.detach().cpu().numpy()].index)
         node_labels = pd.Series(mat.index)
 
-        adj = create_similarity_matrix(mat.reset_index(drop=True) , 'pearson')
+        adj = create_similarity_matrix(mat.reset_index(drop=True) , 'cosine')
         
         # Get k-nearest neighbors for each node (k=20 in this example)
         k_neighbors = get_k_neighbors(adj, k=K)
@@ -465,7 +467,7 @@ def gen_new_graph(model , h , subjects_list , meta) :
             for neighbor in neighbors:
                 G.add_edge(node, neighbor)
 
-        df_full = pd.DataFrame(index=ordered_nodes , columns=ordered_nodes).fillna(0)
+        df_full = pd.DataFrame(index=meta.index , columns=meta.index).fillna(0)
         df_tmp = nx.to_pandas_adjacency(G)
         df_tmp.index = node_labels
         df_tmp.columns = node_labels
@@ -473,6 +475,8 @@ def gen_new_graph(model , h , subjects_list , meta) :
         df_full.loc[df_tmp.index , df_tmp.columns] = df_tmp.values
 
         full_graphs.append(df_full)
+        
+        prev_dim += dim
 
     if len(full_graphs) > 1 : 
         adj_snf = SNF(full_graphs)

@@ -5,6 +5,8 @@ import os
 import pickle
 import networkx as nx
 from functools import reduce
+from dgl.nn import GraphConv
+import torch.nn as nn
 
 # Define the merge operation setup
 def merge_dfs(left_df, right_df):
@@ -101,3 +103,11 @@ def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
         G.add_edges_from(edges)
         
     return G
+
+def init_weights(m):
+    if isinstance(m, GraphConv):
+        m.reset_parameters() ## or simply use your layer.reset_parameters()
+    if isinstance(m, nn.Linear):
+        nn.init.normal_(m.weight, mean=0.0, std=np.sqrt(1 / m.in_features))
+        if m.bias is not None: 
+            nn.init.zeros_(m.bias)
