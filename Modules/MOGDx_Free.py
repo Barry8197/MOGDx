@@ -38,10 +38,10 @@ def main(args):
     get_gpu_memory()
 
     # Load data and metadata
-    datModalities , meta = data_parsing(input_dir , args.modalities , args.target , args.index_col)
+    datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col)
 
     # Load SNF graph
-    graph_file = args.input + 'Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
+    graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
     g = nx.read_graphml(graph_file)
 
     meta = meta.loc[sorted(meta.index)]
