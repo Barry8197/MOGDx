@@ -83,7 +83,7 @@ def main(args):
         g = g.to(device)
 
         # Train the model
-        loss_plot = train(g, train_index, device ,  model , label , 2000 , 1e-3 , 100)
+        loss_plot = train(g, train_index, device ,  model , label , args.epochs , args.lr , args.patience)
         plt.title(f'Loss for split {i}')
         save_path = args.output + '/loss_plots/'
         os.makedirs(save_path, exist_ok=True)
@@ -108,7 +108,7 @@ def main(args):
         )
 
         # Evaluate the model
-        test_output_metrics = evaluate(model , g , test_dataloader )
+        test_output_metrics = evaluate(model , g , test_dataloader)
 
         print(
             "Fold : {:01d} | Test Accuracy = {:.4f} | F1 = {:.4f} ".format(
