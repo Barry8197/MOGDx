@@ -55,7 +55,7 @@ class Encoder(torch.nn.Module):
         return decoded 
     
 class GSage_MME(nn.Module):
-    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes):
+    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes, PNet=None):
         
         super().__init__()
         
@@ -104,7 +104,7 @@ class GSage_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
@@ -140,7 +140,7 @@ class GSage_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
@@ -204,7 +204,7 @@ class GSage_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
@@ -462,7 +462,7 @@ class GCN_MME(nn.Module):
         return y
     
 class GAT_MME(nn.Module):
-    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , heads , num_classes):
+    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , heads , num_classes, PNet=None):
         
         super().__init__()
         
@@ -512,7 +512,7 @@ class GAT_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
@@ -549,7 +549,7 @@ class GAT_MME(nn.Module):
             x = h[: , prev_dim:dim+prev_dim]
             n = x.shape[0]
             nan_rows = torch.isnan(x).any(dim=1)
-            encoded , decoded = Encoder(x[~nan_rows])
+            decoded = Encoder(x[~nan_rows])
 
             imputed_idx = torch.where(nan_rows)[0]
             reindex = list(range(n))
