@@ -1,3 +1,5 @@
 [submodule "Modules/PNetTorch"]
 	path = Modules/PNetTorch
 	url = git@github.com:Barry8197/PNetTorch.git
+[submodule "Modules.PNetTorch"]
+	branch = main
