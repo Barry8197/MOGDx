@@ -1,29 +1,41 @@
-import argparse
-import pandas as pd
-import numpy as np
 import os
-import sys  
-sys.path.insert(0, './MAIN/')
-from utils import *
-from GNN_MME import *
-from train import *
-import preprocess_functions
-
-import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedKFold , train_test_split
-import networkx as nx
-import torch
-from datetime import datetime
-import joblib
-import warnings
 import gc
+import time
+import argparse
+import numpy as np
+import pandas as pd
+import networkx as nx
+from datetime import datetime
+
+from MAIN.utils import *
+from MAIN.train import *
+import MAIN.preprocess_functions
+from MAIN.GNN_MME import GCN_MME , GSage_MME , GAT_MME
+
+from Modules.PNetTorch.MAIN.reactome import ReactomeNetwork
+from Modules.PNetTorch.MAIN.Pnet import MaskedLinear , PNET
+from Modules.PNetTorch.MAIN.utils import numpy_array_to_one_hot, get_gpu_memory
+from Modules.PNetTorch.MAIN.interpret import interpret , evaluate_interpret_save , visualize_importances
+
+import dgl
+import torch
+import torch.nn.functional as F
+import matplotlib.pyplot as plt
+from sklearn.model_selection import StratifiedKFold
+
+import warnings
 warnings.filterwarnings("ignore")
 
 print("Finished Library Import \n")
 
-import time
-
 def main(args): 
+    
+    # Map model names to class objects
+    model_mapping = {
+        "GCN": GCN_MME,
+        "GSage": GSage_MME,
+        'GAT': GAT_MME
+    }
 
     # Start the timer
     start_time = time.time()
@@ -39,6 +51,18 @@ def main(args):
 
     # Load data and metadata
     datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col)
+    
+    if args.interpret_feat : 
+        features = {}
+        for i , mod in enumerate(datModalities) : 
+            features[i] = list(datModalities[mod].columns)
+
+    if args.pnet : 
+        # List of genes of interest in PNet (keep to less than 1000 for big models)
+        genes = pd.read_csv(f'{args.input}/../ext_data/genelist.txt', header=0)
+
+        # Build network to obtain gene and pathway relationships
+        net = ReactomeNetwork(genes_of_interest=np.unique(list(genes['genes'].values)) , n_levels=5)
 
     # Load SNF graph
     graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
@@ -76,7 +100,11 @@ def main(args):
     for i, (train_index, test_index) in enumerate(skf.split(meta.index, meta)) :
 
         # Initialize model
-        model = GCN_MME(MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique())).to(device)
+        if args.pnet : 
+            model = model_mapping[args.model](MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), PNet=net).to(device)
+        else :
+            model = model_mapping[args.model](MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique())).to(device)
+        
         print(model)
         print(g)
         
@@ -119,6 +147,43 @@ def main(args):
         test_logits.extend(test_output_metrics[-2])
         test_labels.extend(test_output_metrics[-1])
         
+        if args.interpret_feat : 
+            prev_dim = 0
+            for i_int , (pnet , dim) in enumerate(zip(model.encoder_dims , model.input_dims)) : 
+
+                pnet.features = features[i_int]
+
+                x = g.ndata['feat'][torch.Tensor(test_index).to(device).to(torch.int) , prev_dim:dim+prev_dim]
+
+                if i_int == 0 :
+                    model_importances_cv = interpret(pnet , x , savedir='None' , plot=False)
+                    for layer in model_importances_cv.keys() : 
+                        model_importances_cv[layer] = model_importances_cv[layer].fillna(0)
+                    model_importances_cv['Features'] = (model_importances_cv['Features'] - model_importances_cv['Features'].mean().mean())/model_importances_cv['Features'].mean().std()
+                    model_importances_cv['Features'] = model_importances_cv['Features'].abs().mean(axis=0)
+                else : 
+                    model_importances_tmp = interpret(pnet , x , savedir='None', plot=False)
+                    model_importances_tmp['Features'] = (model_importances_tmp['Features'] - model_importances_tmp['Features'].mean().mean())/model_importances_tmp['Features'].mean().std()
+                    model_importances_tmp['Features'] = model_importances_tmp['Features'].abs().mean(axis=0)
+                    for layer in model_importances_cv.keys() : 
+                        model_importances_tmp[layer] = model_importances_tmp[layer].fillna(0)
+                        if layer == 'Features' : 
+                            model_importances_cv[layer] = pd.concat([model_importances_cv[layer] , model_importances_tmp[layer]])
+                        else : 
+                            model_importances_cv[layer] += model_importances_tmp[layer]
+
+                prev_dim += dim
+
+            model_importances_cv = {k: (v.divide(i_int+1) if k != 'Features' else v) for k, v in model_importances_cv.items()}
+            if i == 0 : 
+                model_importances = model_importances_cv
+            else : 
+                for layer in model_importances.keys() :
+                    if layer == 'Features' : 
+                        model_importances[layer] +=  model_importances_cv[layer]
+                    else : 
+                        model_importances[layer] = pd.concat([model_importances[layer] , model_importances_cv[layer]] , axis=0).reset_index(drop=True)
+        
         # Save the output metrics and best performing model
         output_metrics.append(test_output_metrics)
         if i == 0 : 
@@ -137,6 +202,11 @@ def main(args):
 
     test_logits = torch.stack(test_logits)
     test_labels = torch.stack(test_labels)
+    
+    if args.interpret_feat : 
+        model_importances = {k: (v.divide(i+1)) for k, v in model_importances.items()}
+        with open(f'{args.output}/model_importance.pkl', 'wb') as file:
+            pickle.dump(model_importances, file)
             
     # Save the output metrics to a file   
     accuracy = []
@@ -193,6 +263,22 @@ def main(args):
             node_true.append(display_label[true])
 
         pd.DataFrame({'Actual' :node_true , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
+        
+        if args.interpret_feat : 
+            model_layers_importance = {}
+            model_layers_importance_fig= {}
+            for i, layer in enumerate(model_importances):
+                if i == 0 :
+                    fig = plt.figure(figsize=(12,6))
+                    model_importances['Features'].sort_values(ascending=False)[:20].plot(kind='bar')
+                    plt.xticks(rotation=45, ha='right', rotation_mode='anchor')
+                    plt.title('Input Feature Importance')
+                    plt.savefig(f'{args.output}/feature_importance.png' , dpi = 300)
+                else : 
+                    layer_title = f"Pathway_Level_{i-1}_Importance.png" if i > 1 else "Gene_Importance.png"
+                    fig = visualize_importances(
+                        model_importances[layer], title=f"Average {layer_title}")
+                    fig.savefig(f'{args.output}/{layer_title}' , dpi = 300)
 
     # Stop the timer
     end_time = time.time()
@@ -250,7 +336,11 @@ def construct_parser():
     #                    'specifying GNN layer sizes')
     #parser.add_argument('--layer-activation', default=['elu' , 'elu'] , nargs="+" , type=str , help='List of activation'
     #                    'functions for each GNN layer')
-    
+
+    parser.add_argument('--pnet', action='store_true' , default=False,
+                        help='Flag for using PNet encoder. Requires gene list called genelist.txt in a folder called ext_data.')
+    parser.add_argument('--interpret_feat', action='store_true' , default=False,
+                        help='Flag for interpreting features')
     parser.add_argument('--h-feats', required=True, nargs="+" ,type=int , help ='Integer specifying hidden dim of GNN'
                     'specifying GNN layer size')
     parser.add_argument('-i', '--input', required=True, help='Path to the '
@@ -263,6 +353,8 @@ def construct_parser():
                         'corresponding to the length of hidden dims of each data modality')
     parser.add_argument('--target' , required = True , help='Column name referring to the'
                         'disease classification label')
+    parser.add_argument('--model', type=str, default='GCN', help='Name of Model to instantiate.'
+                        'Choose from [GCN, GSage, GAT]')
     return parser
 
 # Run the main function
