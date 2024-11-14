@@ -462,7 +462,7 @@ class GCN_MME(nn.Module):
         return y
     
 class GAT_MME(nn.Module):
-    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , heads , num_classes, PNet=None):
+    def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats, num_classes, PNet=None):
         
         super().__init__()
         
@@ -472,7 +472,7 @@ class GAT_MME(nn.Module):
         self.num_layers   = len(hidden_feats) + 1
         self.input_dims   = input_dims
         self.hidden_feats = hidden_feats
-        self.heads        = heads 
+        self.heads        = [3 for _ in range(self.num_layers)] 
         self.num_classes  = num_classes
 
         # GCN with Encoder reduced dim input and pooling scheme
