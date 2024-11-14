@@ -487,16 +487,16 @@ class GAT_MME(nn.Module):
             if layers < self.num_layers -1 :
                 if layers == 0 : 
                     self.gnnlayers.append(
-                        GATConv(decoder_dim , hidden_feats[layers], num_heads=heads[layers])
+                        GATConv(decoder_dim , hidden_feats[layers], num_heads=self.heads[layers])
                     )
                 else :
                     self.gnnlayers.append(
-                        GATConv(hidden_feats[layers-1]*heads[layers-1], hidden_feats[layers], num_heads=heads[layers])
+                        GATConv(hidden_feats[layers-1]*self.heads[layers-1], hidden_feats[layers], num_heads=self.heads[layers])
                     )
-                self.batch_norms.append(nn.BatchNorm1d(hidden_feats[layers]*heads[layers]))
+                self.batch_norms.append(nn.BatchNorm1d(hidden_feats[layers]*self.heads[layers]))
             else : 
                 self.gnnlayers.append(
-                    GATConv(hidden_feats[layers-1]*heads[layers-1], num_classes, num_heads=heads[layers])
+                    GATConv(hidden_feats[layers-1]*self.heads[layers-1], num_classes, num_heads=self.heads[layers])
                 )
                 
         self.drop = nn.Dropout(0.5)
