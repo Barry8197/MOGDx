@@ -8,7 +8,7 @@ import pandas as pd
 import networkx as nx
 from datetime import datetime
 
-sys.path.insert(0 , './../')
+sys.path.insert(0, './../')
 from MAIN.utils import *
 from MAIN.train import *
 import MAIN.preprocess_functions
@@ -116,7 +116,7 @@ def main(args):
         print(model)
         print(g)
 
-        G = train(g, train_index, device ,  model , meta , 500 , 1e-3 , 20, pretrain=True) #Fixed pretraining parameters
+        G = train(g, train_index, device ,  model , meta , 500 , 1e-3 , 20, pretrain=True,pnet=args.pnet) #Fixed pretraining parameters
 
         sampler = NeighborSampler(
             [15 for i in range(len(model.gnnlayers))],  # fanout for each layer

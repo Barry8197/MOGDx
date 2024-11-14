@@ -11,7 +11,7 @@ from datetime import datetime
 sys.path.insert(0 , './../')
 from MAIN.utils import *
 from MAIN.train import *
-import MAIN.preprocess_functions
+import MAIN.preprocess_functions as preprocess_functions
 from MAIN.GNN_MME import GCN_MME , GSage_MME , GAT_MME
 
 from Modules.PNetTorch.MAIN.reactome import ReactomeNetwork
@@ -23,7 +23,8 @@ import dgl
 import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
-from sklearn.model_selection import StratifiedKFold
+from palettable import wesanderson
+from sklearn.model_selection import StratifiedKFold, train_test_split
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -49,13 +50,8 @@ def main(args):
     print("Using %s device" % device)
     get_gpu_memory()
 
-    datModalities , meta = data_parsing(args.input , args.mods , args.target , args.index_col , PROCESSED=False)
+    datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col , PROCESSED=False)
     meta = meta.loc[sorted(meta.index)]
-    
-    if args.interpret_feat : 
-        features = {}
-        for i , mod in enumerate(datModalities) : 
-            features[i] = list(datModalities[mod].columns)
 
     if args.pnet : 
         # List of genes of interest in PNet (keep to less than 1000 for big models)
@@ -90,7 +86,7 @@ def main(args):
 
         all_graphs = {}
         data_to_save[i] = {}
-        for mod in datModalities : 
+        for i, mod in enumerate(datModalities) : 
             count_mtx = datModalities[mod]
 
             datMeta = meta.loc[count_mtx.index]
@@ -162,6 +158,10 @@ def main(args):
 
             h[mod] = datExpr
             MME_input_shapes.append(datExpr.shape[1])
+            if args.interpret_feat : 
+                if i == 0 : 
+                    features = {}
+                features[i] = list(datExpr.columns)
 
         all_idx = list(set().union(*[list(h[mod].index) for mod in h]))
         train_index = indices_removal_adjust(train_index , meta.reset_index()[args.index_col] , all_idx)

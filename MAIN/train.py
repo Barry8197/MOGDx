@@ -18,7 +18,7 @@ from preprocess_functions import gen_new_graph
 sys.path = orig_sys_path
 import gc
 
-def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False):
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
@@ -103,7 +103,7 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
     del train_dataloader
 
     if pretrain : 
-        G = gen_new_graph(model , g.ndata['feat'], labels)
+        G = gen_new_graph(model , g.ndata['feat'], labels, pnet=pnet)
         
         del optimizer , scheduler , model
         

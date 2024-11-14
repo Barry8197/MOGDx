@@ -433,7 +433,7 @@ def convert_dataframe_to_numpy(input_data):
         #print("The provided input is not a pandas DataFrame.")
         return input_data
     
-def gen_new_graph(model , h, meta) : 
+def gen_new_graph(model , h, meta , pnet=False) : 
     model.eval()
     
     full_graphs = []
@@ -446,7 +446,10 @@ def gen_new_graph(model , h, meta) :
         
         x = h[: , prev_dim:dim+prev_dim]
         nan_rows = torch.isnan(x).any(dim=1)
-        first_layer_feat = (x[~nan_rows] @ Encoder.encoder[0].weight.T).detach().cpu().numpy()
+        if pnet : 
+            first_layer_feat = (x[~nan_rows] @ Encoder.layers[0].weight.T).detach().cpu().numpy()
+        else :
+            first_layer_feat = (x[~nan_rows] @ Encoder.encoder[0].weight.T).detach().cpu().numpy()
                 
         mat = pd.DataFrame(data = first_layer_feat , index=meta.loc[~nan_rows.detach().cpu().numpy()].index)
         node_labels = pd.Series(mat.index)
