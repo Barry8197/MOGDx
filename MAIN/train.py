@@ -59,7 +59,7 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
         ): 
             x = blocks[0].srcdata["feat"]
             y = blocks[-1].dstdata["label"]
-            logits = model(blocks, x)
+            logits = model(x, blocks)
 
             loss = loss_fcn(logits, y.float())
 
@@ -129,7 +129,7 @@ def evaluate(model, graph, dataloader):
             x = blocks[0].srcdata["feat"]
             y.append(blocks[-1].dstdata["label"])
             
-            logits.append(model(blocks, x))
+            logits.append(model(x, blocks))
 
     logits = torch.cat(logits, dim=0)
     y      = torch.cat(y, dim=0)
