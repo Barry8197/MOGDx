@@ -8,10 +8,14 @@ from dgl.nn import GraphConv , SAGEConv, GATConv
 from dgl.dataloading import DataLoader, MultiLayerFullNeighborSampler
 import tqdm
 import sys
+import numpy as np
+import pandas as pd
 orig_sys_path = sys.path[:]
 dirname = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0 , os.path.join(dirname , '../Modules/PNetTorch/MAIN'))
 from Pnet import MaskedLinear, PNET 
+sys.path.insert(0 , os.path.join(dirname , '../Modules/'))
+import layer_conductance
 sys.path = orig_sys_path
 
 
@@ -297,7 +301,7 @@ class GCN_MME(nn.Module):
                 
         self.drop = nn.Dropout(0.5)
 
-    def forward(self, g , h):
+    def forward(self, h , g):
         # list of hidden representation at each layer (including the input layer)
         
         prev_dim = 0
@@ -324,7 +328,7 @@ class GCN_MME(nn.Module):
 
         h = node_features/(i+1)
         
-        for l , (layer , g_layer) in enumerate(zip(self.gnnlayers , g)) : 
+        for l , (layer , g_layer) in enumerate(zip(self.gnnlayers , g)) :             
             h = layer(g_layer, h)
             if l != len(self.gnnlayers) - 1:
                 h = F.relu(h)
@@ -460,6 +464,117 @@ class GCN_MME(nn.Module):
                 y[output_nodes[0] : output_nodes[-1] + 1] = h.to(buffer_device)
             feat = y
         return y
+
+    def feature_importance(self, test_dataloader , device):
+        """
+        Calculate feature importances using the Conductance algorithm through Captum.
+
+        Args:
+            test_dataset (torch.Tensor): The dataset for which to calculate importances.
+            target_class (int): The target class index for which to calculate importances.
+
+        Returns:
+            pd.DataFrame: A dataframe containing the feature importances.
+        """
+        print('Feature Level Importance')
+        feature_importances = torch.zeros((len(test_dataloader.indices), np.sum(self.input_dims)) , device=device)
+
+        prev_dim = 0
+        for i , (pnet , dim) in enumerate(zip(self.encoder_dims , self.input_dims)) : 
+            cond = layer_conductance.LayerConductance(self, pnet.layers[0])
+
+            for it, (input_nodes, output_nodes, blocks) in enumerate(test_dataloader):
+                x = blocks[0].srcdata["feat"]
+                y = blocks[-1].dstdata["label"].max(dim=1)[1]
+                
+                n = x.shape[0]
+                nan_rows = torch.isnan(x[: , prev_dim:prev_dim + dim]).any(dim=1)
+                    
+                for target_class in y.unique() : 
+                    conductance = cond.attribute(x, target=target_class, additional_forward_args=blocks, internal_batch_size =128 , attribute_to_layer_input=True)
+                    
+                    imputed_idx = torch.where(nan_rows)[0]
+                    reindex = list(range(n))
+                    for imp_idx in imputed_idx :
+                        reindex.insert(imp_idx, reindex[-1])  # Insert the last index at the desired position
+                        del reindex[-1]
+        
+                    cond_imputed = torch.concat([conductance , torch.zeros(n , conductance.shape[1], device=device)])[reindex]
+                    cond_imputed = cond_imputed[test_dataloader.indices]
+
+                    feature_importances[y == target_class, prev_dim:prev_dim + dim] = cond_imputed[y == target_class]
+                    
+            prev_dim += dim
+                
+        data_index = getattr(pnet, 'data_index', np.arange(len(y)))
+
+        feature_importances = pd.DataFrame(feature_importances.detach().cpu().numpy(),
+                                           index=data_index,
+                                           columns=self.features)
+        
+        self.feature_importances = feature_importances
+        
+        return self.feature_importances
+
+    def layerwise_importance(self, test_dataloader , device):
+        """
+        Compute layer-wise importance scores across all layers for given targets.
+
+        Args:
+            test_dataset (torch.Tensor): The dataset for which to calculate importances.
+            target_class (int): The target class index for importance calculation.
+
+        Returns:
+            List[pd.DataFrame]: A list containing the importance scores for each layer.
+        """
+        
+        layer_importance_scores = {}
+        prev_dim = 0
+        for i , (pnet , dim) in enumerate(zip(self.encoder_dims , self.input_dims)) : 
+            layer_importance_scores[i] = []
+            for lvl , level in enumerate(pnet.layers) :
+                print(level)
+                cond = layer_conductance.LayerConductance(self, level)
+
+                cond_vals = []
+                for it, (input_nodes, output_nodes, blocks) in enumerate(test_dataloader):
+                    x = blocks[0].srcdata["feat"]
+                    y = blocks[-1].dstdata["label"].max(dim=1)[1]
+                    
+                    n = x.shape[0]
+                    nan_rows = torch.isnan(x[: , prev_dim:prev_dim + dim]).any(dim=1)
+
+                    cond_vals_tmp = torch.zeros((y.shape[0], level.weight.shape[0]) , device=device)
+                        
+                    for target_class in y.unique() : 
+                        conductance = cond.attribute(x, target=target_class, additional_forward_args=blocks, internal_batch_size =128)
+                        
+                        imputed_idx = torch.where(nan_rows)[0]
+                        reindex = list(range(n))
+                        for imp_idx in imputed_idx :
+                            reindex.insert(imp_idx, reindex[-1])  # Insert the last index at the desired position
+                            del reindex[-1]
+            
+                        cond_imputed = torch.concat([conductance , torch.zeros(n , conductance.shape[1], device=device)])[reindex]
+                        cond_imputed = cond_imputed[test_dataloader.indices]
+
+                        cond_vals_tmp[y == target_class] = cond_imputed[y == target_class]
+                    
+                    cond_vals.append(cond_vals_tmp)
+
+                cond_vals = torch.cat(cond_vals , dim=0)
+                
+                cols = pnet.layer_info[lvl]
+                data_index = getattr(pnet, 'data_index', np.arange(len(y)))
+        
+                cond_vals_genomic = pd.DataFrame(cond_vals.detach().cpu().numpy(),
+                                                 columns=cols,
+                                                 index=data_index)
+                layer_importance_scores[i].append(cond_vals_genomic)
+
+            prev_dim += dim
+        
+        return layer_importance_scores
     
 class GAT_MME(nn.Module):
     def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats, num_classes, PNet=None):
