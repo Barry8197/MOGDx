@@ -1,6 +1,7 @@
 import os
 import gc
 import time
+import copy
 import argparse
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from sklearn.model_selection import StratifiedKFold
+from dgl.dataloading import MultiLayerFullNeighborSampler
 
 import warnings
 warnings.filterwarnings("ignore")
@@ -51,23 +53,33 @@ def main(args):
 
     # Load data and metadata
     datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col)
-    
+
     if args.interpret_feat : 
         features = {}
         for i , mod in enumerate(datModalities) : 
             features[i] = list(datModalities[mod].columns)
+        model_scores = {}
+        layer_importance_scores = {}
 
     if args.pnet : 
         # List of genes of interest in PNet (keep to less than 1000 for big models)
-        genes = pd.read_csv(f'{args.input}/../ext_data/genelist.txt', header=0)
+        genes = pd.read_csv(f'{args.input}/../ext_data/genelist.txt', header=0 , delimiter='\t')
 
         # Build network to obtain gene and pathway relationships
         net = ReactomeNetwork(genes_of_interest=np.unique(list(genes['genes'].values)) , n_levels=5)
 
     # Load SNF graph
-    graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
-    g = nx.read_graphml(graph_file)
+    if args.gen_net : 
+        if args.embeddings : 
+            input_dir = f'{args.input}/../ext_data/'
+            g, meta = gen_net_from_data(meta , 'BL' , input_dir , args.section , args.emb_model, args.meanpool , args.embeddings ,args.snf_emb)
+        else : 
+            g, meta = gen_net_from_data(meta , 'BL' , args.input, args.section , args.embeddings, args.meanpool, args.embeddings, args.snf_emb)
+    else :
+        graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
+        g = nx.read_graphml(graph_file)
 
+    meta = meta.loc[list(g.nodes())]
     meta = meta.loc[sorted(meta.index)]
 
     # Get the unique labels in the metadata
@@ -76,6 +88,7 @@ def main(args):
     MME_input_shapes = [ datModalities[mod].shape[1] for mod in datModalities]
 
     h = reduce(merge_dfs , list(datModalities.values()))
+    h = h.loc[meta.index]
     h = h.loc[sorted(h.index)]
 
     g = dgl.from_networkx(g , node_attrs=['idx' , 'label'])
@@ -118,11 +131,12 @@ def main(args):
         plt.savefig(f'{save_path}loss_split_{i}.png' , dpi = 200)
         plt.clf()
         
-        sampler = NeighborSampler(
-            [15 for i in range(len(model.gnnlayers))],  # fanout for each layer
+        sampler = MultiLayerFullNeighborSampler(
+            len(model.gnnlayers),  # fanout for each layer
             prefetch_node_feats=['feat'],
             prefetch_labels=['label'],
         )
+        
         test_dataloader = DataLoader(
             g,
             torch.Tensor(test_index).to(torch.int64).to(device),
@@ -148,49 +162,39 @@ def main(args):
         test_labels.extend(test_output_metrics[-1])
         
         if args.interpret_feat : 
-            prev_dim = 0
-            for i_int , (pnet , dim) in enumerate(zip(model.encoder_dims , model.input_dims)) : 
-
-                pnet.features = features[i_int]
-
-                x = g.ndata['feat'][torch.Tensor(test_index).to(device).to(torch.int) , prev_dim:dim+prev_dim]
-
-                if i_int == 0 :
-                    model_importances_cv = interpret(pnet , x , savedir='None' , plot=False)
-                    for layer in model_importances_cv.keys() : 
-                        model_importances_cv[layer] = model_importances_cv[layer].fillna(0)
-                    model_importances_cv['Features'] = (model_importances_cv['Features'] - model_importances_cv['Features'].mean().mean())/model_importances_cv['Features'].mean().std()
-                    model_importances_cv['Features'] = model_importances_cv['Features'].abs().mean(axis=0)
+            model.features = [element for sublist in features.values() for element in sublist]
+            if i ==0 :
+                model_scores['Input Features'] = {}
+                model_scores['Input Features']['mad'] = pd.DataFrame(model.feature_importance(test_dataloader , device).abs().mean(axis=0)).T
+            else :
+                model_scores['Input Features']['mad'].loc[i]  = model.feature_importance(test_dataloader , device).abs().mean(axis=0)
+            
+            layer_importance_scores[i] = model.layerwise_importance(test_dataloader , device)
+    
+            # Get the number of layers of the model
+            n_layers = len(next(iter(layer_importance_scores[i].values())))
+            
+            # Sum corresponding modalities importances
+            mean_absolute_distance = [sum([layer_importance_scores[i][k][ii].abs().mean() for k in layer_importance_scores[i].keys()]) for ii in range(n_layers)]
+            summed_variation_attr  = [sum([layer_importance_scores[i][k][ii].std()/max(layer_importance_scores[i][k][ii].std()) for k in layer_importance_scores[i].keys()]) for ii in range(n_layers)]
+        
+            for ii , (mad , sva) in  enumerate(zip(mean_absolute_distance , summed_variation_attr)) :
+                layer_title = f"Pathway Level {ii} Importance" if ii > 0 else "Gene Importance"
+                if i == 0 : 
+                    model_scores[layer_title] =  {}
+                    model_scores[layer_title]['mad'] = pd.DataFrame(mad).T
+                    model_scores[layer_title]['sva'] = pd.DataFrame(sva).T
                 else : 
-                    model_importances_tmp = interpret(pnet , x , savedir='None', plot=False)
-                    model_importances_tmp['Features'] = (model_importances_tmp['Features'] - model_importances_tmp['Features'].mean().mean())/model_importances_tmp['Features'].mean().std()
-                    model_importances_tmp['Features'] = model_importances_tmp['Features'].abs().mean(axis=0)
-                    for layer in model_importances_cv.keys() : 
-                        model_importances_tmp[layer] = model_importances_tmp[layer].fillna(0)
-                        if layer == 'Features' : 
-                            model_importances_cv[layer] = pd.concat([model_importances_cv[layer] , model_importances_tmp[layer]])
-                        else : 
-                            model_importances_cv[layer] += model_importances_tmp[layer]
-
-                prev_dim += dim
-
-            model_importances_cv = {k: (v.divide(i_int+1) if k != 'Features' else v) for k, v in model_importances_cv.items()}
-            if i == 0 : 
-                model_importances = model_importances_cv
-            else : 
-                for layer in model_importances.keys() :
-                    if layer == 'Features' : 
-                        model_importances[layer] +=  model_importances_cv[layer]
-                    else : 
-                        model_importances[layer] = pd.concat([model_importances[layer] , model_importances_cv[layer]] , axis=0).reset_index(drop=True)
+                    model_scores[layer_title]['mad'].loc[i] = mad
+                    model_scores[layer_title]['sva'].loc[i] = sva
         
         # Save the output metrics and best performing model
         output_metrics.append(test_output_metrics)
         if i == 0 : 
-            best_model = model
+            best_model = copy.deepcopy(model).to('cpu')
             best_idx = i
         elif output_metrics[best_idx][1] < test_output_metrics[1] : 
-            best_model = model
+            best_model = copy.deepcopy(model).to('cpu')
             best_idx   = i
 
         get_gpu_memory()
@@ -204,9 +208,8 @@ def main(args):
     test_labels = torch.stack(test_labels)
     
     if args.interpret_feat : 
-        model_importances = {k: (v.divide(i+1)) for k, v in model_importances.items()}
-        with open(f'{args.output}/model_importance.pkl', 'wb') as file:
-            pickle.dump(model_importances, file)
+        with open(f'{args.output}/model_scores.pkl', 'wb') as file:
+            pickle.dump(model_scores, file)
             
     # Save the output metrics to a file   
     accuracy = []
@@ -265,19 +268,17 @@ def main(args):
         pd.DataFrame({'Actual' :node_true , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
         
         if args.interpret_feat : 
-            model_layers_importance = {}
-            model_layers_importance_fig= {}
-            for i, layer in enumerate(model_importances):
+            for i, layer in enumerate(model_scores):
                 if i == 0 :
                     fig = plt.figure(figsize=(12,6))
-                    model_importances['Features'].sort_values(ascending=False)[:20].plot(kind='bar')
+                    model_scores[layer]['mad'].mean(axis=0).sort_values(ascending=False)[:20].plot(kind='bar')
                     plt.xticks(rotation=45, ha='right', rotation_mode='anchor')
                     plt.title('Input Feature Importance')
                     plt.savefig(f'{args.output}/feature_importance.png' , dpi = 300)
                 else : 
-                    layer_title = f"Pathway_Level_{i-1}_Importance.png" if i > 1 else "Gene_Importance.png"
+                    layer_title = f"Pathway Level {i} Importance" if i > 1 else "Gene Importance"
                     fig = visualize_importances(
-                        model_importances[layer], title=f"Average {layer_title}")
+                        model_scores[layer]['sva'].mean(axis=0), title=f"Average {layer_title}")
                     fig.savefig(f'{args.output}/{layer_title}' , dpi = 300)
 
     # Stop the timer
@@ -339,8 +340,18 @@ def construct_parser():
 
     parser.add_argument('--pnet', action='store_true' , default=False,
                         help='Flag for using PNet encoder. Requires gene list called genelist.txt in a folder called ext_data.')
+    parser.add_argument('--gen-net', action='store_true' , default=False,
+                        help='Flag for generating the network from embeddings')
+    parser.add_argument('--embeddings', action='store_true' , default=False,
+                        help='Flag for generating the network from embeddings')
+    parser.add_argument('--snf-emb', action='store_true' , default=False,
+                        help='Flag for performing snf on embeddings')
+    parser.add_argument('--meanpool', action='store_true' , default=False,
+                        help='Flag for switching between meanpool and last token')
     parser.add_argument('--interpret_feat', action='store_true' , default=False,
                         help='Flag for interpreting features')
+    parser.add_argument('--emb-model', required=False, help='Specify the embedding model')
+    parser.add_argument('--section', required=False, help='Specify the mds-updrs section')
     parser.add_argument('--h-feats', required=True, nargs="+" ,type=int , help ='Integer specifying hidden dim of GNN'
                     'specifying GNN layer size')
     parser.add_argument('-i', '--input', required=True, help='Path to the '

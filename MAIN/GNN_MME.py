@@ -8,6 +8,8 @@ from dgl.nn import GraphConv , SAGEConv, GATConv
 from dgl.dataloading import DataLoader, MultiLayerFullNeighborSampler
 import tqdm
 import sys
+from MAIN.utils import get_gpu_memory
+import gc
 import numpy as np
 import pandas as pd
 orig_sys_path = sys.path[:]
@@ -279,7 +281,7 @@ class GCN_MME(nn.Module):
         for modality in range(len(input_dims)):  # excluding the input layer
             if PNet != None : 
                 self.encoder_dims.append(PNET(reactome_network=PNet, input_dim=input_dims[modality] , output_dim=decoder_dim, 
-                      activation = nn.ReLU , dropout=0.5 , filter_pathways=False , input_layer_mask = None))
+                      activation = nn.ReLU , dropout=0.5 , filter_pathways=True , input_layer_mask = None))
             else : 
                 self.encoder_dims.append(Encoder(input_dims[modality] , latent_dims[modality] , decoder_dim))
         
@@ -305,37 +307,35 @@ class GCN_MME(nn.Module):
         # list of hidden representation at each layer (including the input layer)
         
         prev_dim = 0
-        node_features = 0
+        x = []
 
         for i , (Encoder , dim) in enumerate(zip(self.encoder_dims , self.input_dims)) : 
 
-            x = h[: , prev_dim:dim+prev_dim]
-            n = x.shape[0]
-            nan_rows = torch.isnan(x).any(dim=1)
-            decoded = Encoder(x[~nan_rows])
+            n = h.shape[0]
+            nan_rows = torch.isnan(h[: , prev_dim:dim+prev_dim]).any(dim=1).detach()
+            x.append(Encoder(h[: , prev_dim:dim+prev_dim][~nan_rows]))
 
-            imputed_idx = torch.where(nan_rows)[0]
+            imputed_idx = torch.where(nan_rows)[0].cpu().detach()
             reindex = list(range(n))
             for imp_idx in imputed_idx :
                 reindex.insert(imp_idx, reindex[-1])  # Insert the last index at the desired position
                 del reindex[-1]
 
-            decoded_imputed = torch.concat([decoded , torch.median(decoded, dim=0).values.repeat(n).reshape(n , decoded.shape[1])])[reindex]
-
-            node_features += decoded_imputed
+            x[i] = torch.concat([x[i] , torch.median(x[i], dim=0).values.repeat(n).reshape(n , x[i].shape[1])])[reindex]
             
             prev_dim += dim
 
-        h = node_features/(i+1)
+        x = torch.stack(x , dim = 0)
+        x = torch.sum(x , dim = 0)/(i+1)
         
         for l , (layer , g_layer) in enumerate(zip(self.gnnlayers , g)) :             
-            h = layer(g_layer, h)
+            x = layer(g_layer, x)
             if l != len(self.gnnlayers) - 1:
-                h = F.relu(h)
-                h = self.batch_norms[l](h)
-                h = self.drop(h)
+                x = F.relu(x)
+                x = self.batch_norms[l](x)
+                x = self.drop(x)
             
-        return h
+        return x
     
     def inference(self, g , h , device , batch_size):
     # list of hidden representation at each layer (including the input layer)
@@ -477,36 +477,50 @@ class GCN_MME(nn.Module):
             pd.DataFrame: A dataframe containing the feature importances.
         """
         print('Feature Level Importance')
-        feature_importances = torch.zeros((len(test_dataloader.indices), np.sum(self.input_dims)) , device=device)
+        feature_importances = torch.zeros((max(test_dataloader.indices)+1, np.sum(self.input_dims)) , device=device)
 
         prev_dim = 0
         for i , (pnet , dim) in enumerate(zip(self.encoder_dims , self.input_dims)) : 
             cond = layer_conductance.LayerConductance(self, pnet.layers[0])
 
             for it, (input_nodes, output_nodes, blocks) in enumerate(test_dataloader):
+                feature_importances_batch = feature_importances[output_nodes - 1]
+                
                 x = blocks[0].srcdata["feat"]
                 y = blocks[-1].dstdata["label"].max(dim=1)[1]
                 
                 n = x.shape[0]
                 nan_rows = torch.isnan(x[: , prev_dim:prev_dim + dim]).any(dim=1)
                     
-                for target_class in y.unique() : 
-                    conductance = cond.attribute(x, target=target_class, additional_forward_args=blocks, internal_batch_size =128 , attribute_to_layer_input=True)
-                    
+                for target_class in y.unique() :
+                    with torch.no_grad() : 
+                        conductance = cond.attribute(x, target=target_class, additional_forward_args=blocks, internal_batch_size =128 , attribute_to_layer_input=True,n_steps=10)
+                        
                     imputed_idx = torch.where(nan_rows)[0]
                     reindex = list(range(n))
                     for imp_idx in imputed_idx :
                         reindex.insert(imp_idx, reindex[-1])  # Insert the last index at the desired position
                         del reindex[-1]
-        
+    
                     cond_imputed = torch.concat([conductance , torch.zeros(n , conductance.shape[1], device=device)])[reindex]
-                    cond_imputed = cond_imputed[test_dataloader.indices]
+                        
+                    cond_output = cond_imputed[torch.isin(input_nodes , output_nodes)]
 
-                    feature_importances[y == target_class, prev_dim:prev_dim + dim] = cond_imputed[y == target_class]
+                    feature_importances_batch[y == target_class, prev_dim:prev_dim + dim] = cond_output[y == target_class]
+                    del conductance
+                    gc.collect()
+                    torch.cuda.empty_cache()
+
+                feature_importances[output_nodes] = feature_importances_batch
                     
             prev_dim += dim
-                
-        data_index = getattr(pnet, 'data_index', np.arange(len(y)))
+
+        del cond
+        gc.collect()
+        torch.cuda.empty_cache()
+        data_index = getattr(pnet, 'data_index', np.arange(len(test_dataloader.indices)))
+
+        feature_importances = feature_importances[test_dataloader.indices]
 
         feature_importances = pd.DataFrame(feature_importances.detach().cpu().numpy(),
                                            index=data_index,
@@ -546,31 +560,42 @@ class GCN_MME(nn.Module):
 
                     cond_vals_tmp = torch.zeros((y.shape[0], level.weight.shape[0]) , device=device)
                         
-                    for target_class in y.unique() : 
-                        conductance = cond.attribute(x, target=target_class, additional_forward_args=blocks, internal_batch_size =128)
-                        
+                    for target_class in y.unique() :
+                        with torch.no_grad() : 
+                            conductance = cond.attribute(x, target=target_class, additional_forward_args=blocks, internal_batch_size =128,n_steps=10)
+
                         imputed_idx = torch.where(nan_rows)[0]
                         reindex = list(range(n))
                         for imp_idx in imputed_idx :
                             reindex.insert(imp_idx, reindex[-1])  # Insert the last index at the desired position
                             del reindex[-1]
-            
+        
                         cond_imputed = torch.concat([conductance , torch.zeros(n , conductance.shape[1], device=device)])[reindex]
-                        cond_imputed = cond_imputed[test_dataloader.indices]
+                            
+                        cond_output = cond_imputed[torch.isin(input_nodes , output_nodes)]
 
-                        cond_vals_tmp[y == target_class] = cond_imputed[y == target_class]
+                        cond_vals_tmp[y == target_class] = cond_output[y == target_class]
+
+                        del conductance
+                        gc.collect()
+                        torch.cuda.empty_cache()
                     
                     cond_vals.append(cond_vals_tmp)
 
                 cond_vals = torch.cat(cond_vals , dim=0)
                 
                 cols = pnet.layer_info[lvl]
-                data_index = getattr(pnet, 'data_index', np.arange(len(y)))
+                data_index = getattr(pnet, 'data_index', np.arange(len(test_dataloader.indices)))
         
                 cond_vals_genomic = pd.DataFrame(cond_vals.detach().cpu().numpy(),
                                                  columns=cols,
                                                  index=data_index)
                 layer_importance_scores[i].append(cond_vals_genomic)
+
+
+                del cond
+                gc.collect()
+                torch.cuda.empty_cache()
 
             prev_dim += dim
         

@@ -7,6 +7,10 @@ import networkx as nx
 from functools import reduce
 from dgl.nn import GraphConv
 import torch.nn as nn
+import sys
+sys.path.insert(0,'./../')
+import MAIN.preprocess_functions
+from palettable import wesanderson
 
 # Define the merge operation setup
 def merge_dfs(left_df, right_df):
@@ -111,3 +115,99 @@ def init_weights(m):
         nn.init.normal_(m.weight, mean=0.0, std=np.sqrt(1 / m.in_features))
         if m.bias is not None: 
             nn.init.zeros_(m.bias)
+
+def gen_net_from_data(meta , tmpt, input_dir , section , model=None , meanpool = False , embeddings = True , snf=False) : 
+    if embeddings :
+        if snf : 
+            if meanpool : 
+                sec2 = pd.read_csv(f'{input_dir}/{tmpt}_{model}_sec2_meanpool_embeddings.csv' , index_col = 0)
+                sec3 = pd.read_csv(f'{input_dir}/{tmpt}_{model}_sec3_meanpool_embeddings.csv' , index_col = 0)
+            else : 
+                sec2 = pd.read_csv(f'{input_dir}/{tmpt}_{model}_sec2_lasttok_embeddings.csv' , index_col = 0)
+                sec3 = pd.read_csv(f'{input_dir}/{tmpt}_{model}_sec3_lasttok_embeddings.csv' , index_col = 0)
+
+            sec2.index = sec2.index.astype(str)
+            sec3.index = sec3.index.astype(str)
+            overlap = list(set(sec2.index) & set(sec3.index) & set(meta.index))
+            sec2 = sec2.loc[overlap]
+            sec3 = sec3.loc[overlap]
+            meta = meta.loc[overlap]
+
+            knn = 15
+            method = 'pearson'
+            g_sec2 = MAIN.preprocess_functions.knn_graph_generation(sec2 , meta , method=method , 
+                                                    extracted_feats=None, node_size =150 , knn = knn )
+            g_sec3 = MAIN.preprocess_functions.knn_graph_generation(sec3 , meta , method=method , 
+                                                    extracted_feats=None, node_size =150 , knn = knn )
+
+            adj_snf = MAIN.preprocess_functions.SNF([nx.to_pandas_adjacency(g_sec2) , nx.to_pandas_adjacency(g_sec2)] , K=15 , t=10)
+
+            node_labels = pd.Series(adj_snf.index) 
+
+            node_colour = meta.loc[adj_snf.index].astype('category').cat.set_categories(wesanderson.FantasticFox2_5.hex_colors , rename=True)
+
+            g  = MAIN.preprocess_functions.plot_knn_network(adj_snf , 15 , meta.loc[adj_snf.index] ,
+                                                               node_colours=node_colour , node_size=150)
+        else :             
+            if meanpool : 
+                datExpr = pd.read_csv(f'{input_dir}/{tmpt}_{model}_{section}_meanpool_embeddings.csv' , index_col = 0)
+            else :
+                datExpr = pd.read_csv(f'{input_dir}/{tmpt}_{model}_{section}_lasttok_embeddings.csv' , index_col = 0)
+    
+            print(datExpr)
+            datExpr.index = datExpr.index.astype(str)
+            knn = 15
+            method = 'pearson'
+            overlap = list(set(datExpr.index) & set(meta.index))
+            datExpr = datExpr.loc[overlap]
+            meta = meta.loc[overlap]
+            
+            g  = MAIN.preprocess_functions.knn_graph_generation(datExpr , meta , method=method , 
+                                                        extracted_feats=None, node_size =150 , knn = knn )
+        
+    else : 
+        if snf : 
+            with open(f'{input_dir}/MDSUPDRSsec2_processed.pkl' , 'rb') as file : 
+                loaded_data_sec2 = pickle.load(file)
+            with open(f'{input_dir}/MDSUPDRSsec3_processed.pkl' , 'rb') as file : 
+                loaded_data_sec3 = pickle.load(file)
+
+            overlap = list(set(loaded_data_sec2['datMeta'].index) & set(loaded_data_sec3['datMeta'].index) & set(meta.index))
+            sec2 = loaded_data_sec2['datExpr'].loc[overlap]
+            sec3 = loaded_data_sec3['datExpr'].loc[overlap]
+            sec2 = (sec2 - sec2.mean(axis=0))/sec2.std(axis=0)
+            sec3 = (sec3 - sec3.mean(axis=0))/sec3.std(axis=0)
+            meta = meta.loc[overlap]
+
+            knn = 15
+            method = 'pearson'
+            g_sec2 = MAIN.preprocess_functions.knn_graph_generation(sec2 , meta , method=method , 
+                                                    extracted_feats=loaded_data_sec2['extracted_feats'], node_size =150 , knn = knn )
+            g_sec3 = MAIN.preprocess_functions.knn_graph_generation(sec3 , meta , method=method , 
+                                                    extracted_feats=loaded_data_sec3['extracted_feats'], node_size =150 , knn = knn )
+
+            adj_snf = MAIN.preprocess_functions.SNF([nx.to_pandas_adjacency(g_sec2) , nx.to_pandas_adjacency(g_sec2)] , K=15 , t=10)
+
+            node_labels = pd.Series(adj_snf.index) 
+
+            node_colour = meta.loc[adj_snf.index].astype('category').cat.set_categories(wesanderson.FantasticFox2_5.hex_colors , rename=True)
+
+            g  = MAIN.preprocess_functions.plot_knn_network(adj_snf , 15 , meta.loc[adj_snf.index] ,
+                                                               node_colours=node_colour , node_size=150)
+
+        else : 
+            with open(f'{input_dir}/MDSUPDRS{section}_processed.pkl' , 'rb') as file : 
+                loaded_data = pickle.load(file)
+    
+            knn = 15
+            method = 'pearson'
+            overlap = list(set(loaded_data['datMeta'].index) & set(meta.index))
+            datExpr = loaded_data['datExpr'].loc[overlap]
+            datExpr = (datExpr - datExpr.mean(axis=0))/datExpr.std(axis=0)
+            datMeta = loaded_data['datMeta'].loc[overlap]
+            meta = meta.loc[overlap]
+            
+            g  = MAIN.preprocess_functions.knn_graph_generation(datExpr, datMeta , method=method , 
+                                                        extracted_feats=loaded_data['extracted_feats'], node_size =150 , knn = knn )
+
+    return g , meta

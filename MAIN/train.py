@@ -12,13 +12,13 @@ from sklearn.manifold import TSNE
 import seaborn as sns
 import sys
 import os
+import gc
 orig_sys_path = sys.path[:]
 sys.path.insert(0 , os.path.dirname(os.path.abspath(__file__)))
 from preprocess_functions import gen_new_graph
 sys.path = orig_sys_path
-import gc
 
-def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False , batch_size=1024):
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
@@ -35,7 +35,7 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
         torch.Tensor(train_index).to(torch.int64).to(device),
         sampler,
         device=device,
-        batch_size=1024,
+        batch_size=batch_size,
         shuffle=True,
         drop_last=False,
         num_workers=0,
@@ -56,7 +56,10 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
         
         for it, (input_nodes, output_nodes, blocks) in enumerate(
             train_dataloader
-        ): 
+        ):  
+
+            optimizer.zero_grad()
+            
             x = blocks[0].srcdata["feat"]
             y = blocks[-1].dstdata["label"]
             logits = model(x, blocks)
@@ -69,8 +72,7 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
 
             train_acc += (predicted == true).float().mean().item()
             total_loss += loss.item()
-            
-            optimizer.zero_grad()
+        
             loss.backward()
             optimizer.step()
             scheduler.step()
@@ -99,8 +101,9 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
     fig , ax = plt.subplots(figsize=(6,4))
     ax.plot(train_loss  , label = 'Train Loss')
     ax.legend()
-    
-    del train_dataloader
+
+    gc.collect()
+    torch.cuda.empty_cache() 
 
     if pretrain : 
         G = gen_new_graph(model , g.ndata['feat'], labels, pnet=pnet)

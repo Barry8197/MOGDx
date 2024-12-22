@@ -375,6 +375,7 @@ class LayerConductance(LayerAttribution, GradientAttribution):
                 layer_evals = tuple([torch.concat([layer_evals,layer_evals_tmp[0]])])
                 num_examples = layer_gradients_tmp[0].shape[0]
 
+        del scaled_features_tpl_tmp,layer_gradients_tmp,layer_evals_tmp
         # Compute differences between consecutive evaluations of layer_eval.
         # This approximates the total input gradient of each step multiplied
         # by the step size.
