@@ -142,7 +142,7 @@ def main(args):
             torch.Tensor(test_index).to(torch.int64).to(device),
             sampler,
             device=device,
-            batch_size=1024,
+            batch_size=8,
             shuffle=True,
             drop_last=False,
             num_workers=0,
@@ -162,6 +162,10 @@ def main(args):
         test_labels.extend(test_output_metrics[-1])
         
         if args.interpret_feat : 
+            get_gpu_memory()
+            torch.cuda.empty_cache()
+            gc.collect()
+            model.eval()
             model.features = [element for sublist in features.values() for element in sublist]
             if i ==0 :
                 model_scores['Input Features'] = {}
@@ -169,6 +173,9 @@ def main(args):
             else :
                 model_scores['Input Features']['mad'].loc[i]  = model.feature_importance(test_dataloader , device).abs().mean(axis=0)
             
+            get_gpu_memory()
+            torch.cuda.empty_cache()
+            gc.collect()
             layer_importance_scores[i] = model.layerwise_importance(test_dataloader , device)
     
             # Get the number of layers of the model

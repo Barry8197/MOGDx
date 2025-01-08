@@ -154,7 +154,6 @@ def gen_net_from_data(meta , tmpt, input_dir , section , model=None , meanpool =
             else :
                 datExpr = pd.read_csv(f'{input_dir}/{tmpt}_{model}_{section}_lasttok_embeddings.csv' , index_col = 0)
     
-            print(datExpr)
             datExpr.index = datExpr.index.astype(str)
             knn = 15
             method = 'pearson'
