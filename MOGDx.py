@@ -72,11 +72,11 @@ def main(args):
     if args.gen_net : 
         if args.embeddings : 
             input_dir = f'{args.input}/../ext_data/'
-            g, meta = gen_net_from_data(meta , 'BL' , input_dir , args.section , args.emb_model, args.meanpool , args.embeddings ,args.snf_emb)
+            g, meta = gen_net_from_data(meta , args.tmpt , input_dir , args.section , args.emb_model, args.meanpool , args.embeddings ,args.snf_emb)
         else : 
-            g, meta = gen_net_from_data(meta , 'BL' , args.input, args.section , args.embeddings, args.meanpool, args.embeddings, args.snf_emb)
+            g, meta = gen_net_from_data(meta , args.tmpt , args.input, args.section , args.embeddings, args.meanpool, args.embeddings, args.snf_emb)
     else :
-        graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
+        graph_file = args.input + '/../Networks/' + args.tmpt + '_' +  '_'.join(sorted(args.modalities)) + '_graph.graphml'
         g = nx.read_graphml(graph_file)
 
     meta = meta.loc[list(g.nodes())]
@@ -142,7 +142,7 @@ def main(args):
             torch.Tensor(test_index).to(torch.int64).to(device),
             sampler,
             device=device,
-            batch_size=8,
+            batch_size=1024,
             shuffle=True,
             drop_last=False,
             num_workers=0,
@@ -345,6 +345,8 @@ def construct_parser():
     #parser.add_argument('--layer-activation', default=['elu' , 'elu'] , nargs="+" , type=str , help='List of activation'
     #                    'functions for each GNN layer')
 
+    parser.add_argument('--tmpt' , type=str , default='BL', 
+                        help ='Time point for which to generate PSN.')
     parser.add_argument('--pnet', action='store_true' , default=False,
                         help='Flag for using PNet encoder. Requires gene list called genelist.txt in a folder called ext_data.')
     parser.add_argument('--gen-net', action='store_true' , default=False,
