@@ -22,6 +22,18 @@ import matplotlib.pyplot as plt
 warnings.filterwarnings('ignore')
 
 class ElasticNet(nn.Module):
+    """
+    A PyTorch module that implements an Elastic Net regularization logistic regression model.
+
+    Parameters:
+        num_features (int): Number of features in the input dataset.
+        num_classes (int): Number of classes in the output prediction.
+        alpha (float): Mixing parameter for L1 (Lasso) and L2 (Ridge) regularization.
+        lam (float): Overall regularization strength.
+
+    Attributes:
+        linear (nn.Linear): Linear transformation layer.
+    """
     def __init__(self, num_features, num_classes, alpha, lam):
         super(ElasticNet, self).__init__()
         self.linear = nn.Linear(num_features, num_classes)
@@ -29,10 +41,28 @@ class ElasticNet(nn.Module):
         self.lam = lam
 
     def forward(self, X):
-        # Return logits for accuracy computation and other purposes
+        """
+        Forward pass of the neural network model that makes predictions.
+
+        Parameters:
+            X (torch.Tensor): Tensor containing input features.
+
+        Returns:
+            torch.Tensor: Tensor containing the output logits.
+        """
         return self.linear(X)
 
     def calculate_loss(self, logits, y):
+        """
+        Calculates the combined cross-entropy and regularized loss for the model.
+
+        Parameters:
+            logits (torch.Tensor): The logits as predicted by the model.
+            y (torch.Tensor): The true labels.
+
+        Returns:
+            torch.Tensor: The calculated loss value.
+        """
         log_probs = F.log_softmax(logits, dim=1)
         likelihood = -torch.sum(y * log_probs) / y.shape[0]
         l1_reg = torch.norm(self.linear.weight, 1)
@@ -42,11 +72,38 @@ class ElasticNet(nn.Module):
         return total_loss
 
     def accuracy(self, logits, y):
+        """
+        Calculates the accuracy of the model's predictions.
+
+        Parameters:
+            logits (torch.Tensor): The logits as predicted by the model.
+            y (torch.Tensor): The true labels.
+
+        Returns:
+            float: The calculated accuracy.
+        """
         _, predicted = torch.max(logits, dim=1)
         correct = predicted.eq(y.max(dim=1)[1]).sum().item()
         return correct / y.size(0)
 
 def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1_ratio = 1 , num_epochs=1000 , lam = 0.01 , device='cuda') : 
+    """
+    Trains an Elastic Net model given count data and metadata.
+
+    Parameters:
+        count_mtx (pandas.DataFrame): Matrix containing gene expression or count data.
+        datMeta (pandas.Series or DataFrame): Metadata corresponding to count_mtx samples.
+        train_index (list, optional): Indexes for training samples.
+        val_index (list, optional): Indexes for validation samples.
+        l1_ratio (float, optional): The balance between L1 and L2 regularization.
+        num_epochs (int, optional): Number of training epochs.
+        lam (float, optional): Regularization strength.
+        device (str, optional): Device to run the training on ('cuda' or 'cpu').
+
+    Returns:
+        list: Extracted features based on weight importance.
+        ElasticNet: Trained ElasticNet model.
+    """    
     # Initialize your model and the ElasticNet regularization term
     model = ElasticNet(num_features=count_mtx.shape[1], num_classes=len(datMeta.unique()), alpha=l1_ratio, lam=lam).to(device)
 
@@ -99,7 +156,22 @@ def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1
     return extracted_feats , model 
 
 def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None , fit_type='parametric') : 
-    
+    """
+    Conducts differential expression analysis using DESeq2 algorithm.
+
+    Parameters:
+        count_mtx (pandas.DataFrame): Count data for different genes.
+        datMeta (pandas.DataFrame): Metadata for the samples in count_mtx.
+        condition (str): Column in datMeta to use for condition separation.
+        n_genes (int): Number of top genes to extract from the differential expression result.
+        train_index (list, optional): Indexes for training samples if splitting is required.
+        fit_type (str, optional): Statistical fitting type for VST transformation.
+
+    Returns:
+        DeseqDataSet: An object containing results and configuration of DESeq2 run.
+        numpy.ndarray: Variance Stabilized Transformed counts.
+        list: Top genes identified in the differential expression analysis.
+    """    
     datMeta = datMeta.reset_index()
     datMeta.index = datMeta['index']
     
@@ -134,7 +206,19 @@ def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None , fit_typ
     return dds , vsd , top_genes
 
 def data_preprocess(count_mtx , datMeta , gene_exp = False) :
-    
+    """
+    Processes count matrix data by removing genes with zero expression across all samples.
+    Optionally filters genes based on expression levels and calculates similarity matrices.
+
+    Parameters:
+        count_mtx (pd.DataFrame): A DataFrame containing the gene count data.
+        datMeta (pd.Series or pd.DataFrame): Metadata associated with the samples in count_mtx.
+        gene_exp (bool): If true, performs additional gene filtering and similarity matrix calculations.
+
+    Returns:
+        pd.DataFrame: The processed count matrix.
+        pd.Series or pd.DataFrame: The corresponding processed metadata.
+    """    
     n_genes = count_mtx.shape[1]
     count_mtx = count_mtx.loc[: , (count_mtx != 0).any(axis=0)] # remove any genes with all 0 expression
     
@@ -165,9 +249,35 @@ def data_preprocess(count_mtx , datMeta , gene_exp = False) :
     return count_mtx , datMeta
 
 def custom_cpm(counts, lib_size):
+    """
+    Computes Counts Per Million (CPM) normalization on count data.
+
+    Parameters:
+        counts (np.array): An array of raw gene counts.
+        lib_size (float or np.array): The total counts in each library (sample).
+
+    Returns:
+        np.array: Normalized counts expressed as counts per million.
+    """    
     return counts / lib_size * 1e6
 
 def filter_genes(y, design=None, group=None, lib_size=None, min_count=10, min_total_count=15, large_n=10, min_prop=0.7):
+    """
+    Filters genes based on several criteria including minimum count thresholds and proportions.
+
+    Parameters:
+        y (np.array): Expression data for the genes.
+        design (np.array, optional): Design matrix for the samples if available.
+        group (np.array, optional): Group information for samples.
+        lib_size (np.array, optional): Library sizes for the samples.
+        min_count (int): Minimum count threshold for including a gene.
+        min_total_count (int): Minimum total count across all samples for a gene.
+        large_n (int): Cutoff for considering a sample 'large'.
+        min_prop (float): Minimum proportion used in calculations for large sample consideration.
+
+    Returns:
+        np.array: Boolean array indicating which genes to keep.
+    """    
     y = np.asarray(y)
     
     if y.dtype != 'float32':
@@ -200,7 +310,16 @@ def filter_genes(y, design=None, group=None, lib_size=None, min_count=10, min_to
     return np.logical_and(keep_cpm, keep_total_count)
 
 def create_similarity_matrix(mat , method = 'euclidean') :
+    """
+    Creates a similarity matrix from the given data matrix using specified methods.
 
+    Parameters:
+        mat (pd.DataFrame): The matrix from which to calculate similarities (e.g., gene expression levels).
+        method (str): The method to use for calculating similarities. Supported methods are 'bicorr', 'pearson', and 'euclidean'.
+
+    Returns:
+        pd.DataFrame: A DataFrame representing the similarity matrix.
+    """
     if method == 'bicorr' : 
         adj = abs_bicorr(mat.T)
     elif method == 'pearson' : 
@@ -216,7 +335,16 @@ def create_similarity_matrix(mat , method = 'euclidean') :
     return adj
 
 def abs_bicorr(data , mat_means=True) : 
+    """
+    Calculates the absolute bicorrelation matrix for the given data.
 
+    Parameters:
+        data (pd.DataFrame): Data for which to compute the bicorrelation.
+        mat_means (bool): If True, subtract the mean from each column before computing the correlation.
+
+    Returns:
+        pd.DataFrame: Bicorrelation matrix.
+    """
     data = data._get_numeric_data()
     cols = data.columns
     idx = cols.copy()
@@ -237,7 +365,16 @@ def abs_bicorr(data , mat_means=True) :
     return pd.DataFrame(data = correl , index=idx , columns=cols , dtype=np.float32)
 
 def pearson_corr(data, mat_means=True) : 
+    """
+    Computes the Pearson correlation matrix for the given data.
 
+    Parameters:
+        data (pd.DataFrame): Data for which to compute the Pearson correlation.
+        mat_means (bool): Normalizes data by its mean if set to True.
+
+    Returns:
+        pd.DataFrame: Pearson correlation matrix.
+    """
     data = data._get_numeric_data()
     cols = data.columns
     idx = cols.copy()
@@ -259,7 +396,16 @@ def pearson_corr(data, mat_means=True) :
     return pd.DataFrame(data = correl , index=idx , columns=cols , dtype=np.float32)
 
 def cosine_corr(data, mat_means=True) : 
+    """
+    Computes cosine correlations for the given data, treated as vectors.
 
+    Parameters:
+        data (pd.DataFrame): Data for which to compute cosine correlations.
+        mat_means (bool): If True, normalizes the data before computing correlation.
+
+    Returns:
+        pd.DataFrame: Cosine correlation matrix.
+    """
     data = data._get_numeric_data()
     cols = data.columns
     idx = cols.copy()
@@ -281,6 +427,20 @@ def cosine_corr(data, mat_means=True) :
     return pd.DataFrame(data = correl , index=idx , columns=cols , dtype=np.float32)
 
 def knn_graph_generation(datExpr , datMeta , knn = 20 , method = 'euclidean' ,extracted_feats = None, **args) : 
+    """
+    Generates a k-nearest neighbor graph based on the specified data and method of similarity.
+
+    Parameters:
+        datExpr (pd.DataFrame): DataFrame containing expression data or other numerical data.
+        datMeta (pd.DataFrame or pd.Series): Metadata for the nodes in the graph.
+        knn (int): Number of nearest neighbors to connect to each node.
+        method (str): Method used for calculating similarity or distance ('euclidean', 'bicorr', 'pearson', 'cosine').
+        extracted_feats ([type]): Specific features extracted from the data to use for graph construction.
+        **args: Additional arguments for customizing the node visualization (e.g., `node_colour`, `node_size`).
+
+    Returns:
+        nx.Graph: A NetworkX graph object representing the k-nearest neighbors graph.
+    """    
     if extracted_feats is not None : 
         mat = datExpr.loc[: , extracted_feats]
     else : 
@@ -302,7 +462,17 @@ def knn_graph_generation(datExpr , datMeta , knn = 20 , method = 'euclidean' ,ex
     return G
 
 def get_k_neighbors(matrix, k , corr=True):
-    
+    """
+    Finds k-nearest neighbors for each row in the given matrix.
+
+    Parameters:
+        matrix (pd.DataFrame): The matrix from which neighbors are to be found.
+        k (int): The number of neighbors to find for each row.
+        corr (bool): Indicates whether to use correlation rather than distance for finding neighbors.
+
+    Returns:
+        dict: A dictionary where keys are indices (or node names) and values are lists of k-nearest neighbors' indices.
+    """    
     dist_mtx = scipy.spatial.distance_matrix(matrix.values ,  matrix.values)
     dist_mtx = pd.DataFrame(dist_mtx , index = matrix.index , columns = matrix.index)
     #if corr == True : 
@@ -316,7 +486,19 @@ def get_k_neighbors(matrix, k , corr=True):
     return k_neighbors
 
 def plot_knn_network(data , K , labels ,  node_colours = 'skyblue' , node_size = 300) : 
+    """
+    Plots a k-nearest neighbors network using NetworkX.
 
+    Parameters:
+        data (pd.DataFrame): The similarity or distance matrix used to determine neighbors.
+        K (int): The number of nearest neighbors for network connections.
+        labels (pd.Series): Labels or categories for the nodes used in plotting.
+        node_colours (str or list): Color or list of colors for the nodes.
+        node_size (int): Size of the nodes in the plot.
+
+    Returns:
+        nx.Graph: A NetworkX graph object that has been plotted.
+    """
     # Get k-nearest neighbors for each node (k=20 in this example)
     k_neighbors = get_k_neighbors(data, k=K)
 
@@ -345,6 +527,15 @@ def plot_knn_network(data , K , labels ,  node_colours = 'skyblue' , node_size =
     return G
 
 def check_wall_names(wall):
+    """
+    Checks whether all matrices in a list share the same row and column names.
+
+    Parameters:
+        wall (list of pd.DataFrame): List of matrices to check.
+
+    Returns:
+        bool: Returns True if all matrices have consistent names, False otherwise.
+    """    
     def name_match(names_a, names_b):
         return np.array_equal(names_a, names_b)
 
@@ -352,6 +543,15 @@ def check_wall_names(wall):
     return all(name_match(w.index, first_names_a) and name_match(w.columns, first_names_b) for w in wall)
 
 def normalize(x):
+    """
+    Normalizes a square matrix by scaling each row by its total minus the diagonal value, handling it in-place.
+
+    Parameters:
+        x (np.array): The square matrix to normalize.
+
+    Returns:
+        np.array: The normalized matrix with diagonal set to 0.5.
+    """    
     row_sum_mdiag = np.sum(x, axis=1) - np.diag(x)
     row_sum_mdiag[row_sum_mdiag == 0] = 1
     x = x / (2 * (row_sum_mdiag))
@@ -359,6 +559,17 @@ def normalize(x):
     return x
 
 def SNF(networks, K=15, t=10):
+    """
+    Performs Similarity Network Fusion over multiple networks.
+
+    Parameters:
+        networks (list of pd.DataFrames): The individual networks to fuse, represented as similarity or distance matrices.
+        K (int): Number of nearest neighbors to retain in the diffusion process.
+        t (int): Number of iterations for the fusion process.
+
+    Returns:
+        pd.DataFrame: A fused network represented as a similarity matrix.
+    """    
     wall = networks.copy()
     wall_name_check = check_wall_names(wall)
     wall_names = wall[0].index , wall[0].columns  # Assuming wall_names are indices corresponding to dimnames in R
@@ -400,8 +611,14 @@ def SNF(networks, K=15, t=10):
 
 def dominateset(xx, KK=20):
     """
-    This function outputs the matrix with the top KK neighbors kept per row.
-    All other elements in each row are set to zero, then the matrix is normalized per row.
+    Extracts a dominant set from a similarity matrix, setting all but the top KK connections per row to zero and re-normalizes rows.
+
+    Parameters:
+        xx (np.array or pd.DataFrame): The input similarity or distance matrix.
+        KK (int): Number of top values to keep in each row of the matrix.
+
+    Returns:
+        np.array: The extracted dominant set matrix with top KK neighbors per row.
     """
     def zero(x):
         sorted_indices = np.argsort(x)  # Get indices that would sort x
@@ -421,10 +638,13 @@ def dominateset(xx, KK=20):
 
 def convert_dataframe_to_numpy(input_data):
     """
-    Checks if the input is a pandas DataFrame and converts it to a numpy array if true.
-    
-    :param input_data: The data to be checked and potentially converted
-    :return: A numpy array of the DataFrame if input is a DataFrame, otherwise None
+    Converts a pandas DataFrame to a numpy array. If the input is not a DataFrame, returns it as is.
+
+    Parameters:
+        input_data (pd.DataFrame or any): Data to be converted to numpy array.
+
+    Returns:
+        np.array or original data type: The resulting numpy array from conversion or the original input if conversion isn't applicable.
     """
     if isinstance(input_data, pd.DataFrame):
         # Convert the DataFrame to a numpy array using .to_numpy()
@@ -434,6 +654,18 @@ def convert_dataframe_to_numpy(input_data):
         return input_data
     
 def gen_new_graph(model , h, meta , pnet=False) : 
+    """
+    Generates a new graph from learned features using a provided model, handling multi-modal data and integrating them.
+
+    Parameters:
+        model (nn.Module): The trained model which contains the learned parameters.
+        h (torch.Tensor): Tensor containing features of the data.
+        meta (pd.DataFrame or pd.Series): Metadata associated with the features.
+        pnet (bool): Flag indicating whether or not pathway network transformations have been used.
+
+    Returns:
+        nx.Graph: A graph object representing the new graph generated from the features.
+    """    
     model.eval()
     
     full_graphs = []
