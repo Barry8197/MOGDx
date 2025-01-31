@@ -10,11 +10,34 @@ import torch.nn as nn
 
 # Define the merge operation setup
 def merge_dfs(left_df, right_df):
+    """
+    Merges two DataFrames on their indexes with an outer join method.
+
+    Parameters:
+        left_df (pd.DataFrame): The left DataFrame to merge.
+        right_df (pd.DataFrame): The right DataFrame to merge.
+
+    Returns:
+        pd.DataFrame: The resulting DataFrame after merging.
+    """    
     # Merging on 'key' and expanding with 'how=outer' to include all records
     return pd.merge(left_df, right_df, left_index=True, right_index=True, how='outer')
 
 def data_parsing(DATA_PATH , MODALITIES ,TARGET , INDEX_COL , PROCESSED=True) :
-    
+    """
+    Parses multiple data modalities into a unified structure, handling metadata alignment and preprocessing steps.
+
+    Parameters:
+        DATA_PATH (str): The directory path where the data files are stored.
+        MODALITIES (list): A list of modality names to parse.
+        TARGET (str): The column name in metadata that indicates the target or label.
+        INDEX_COL (str): The column used as the index for merging and aligning data.
+        PROCESSED (bool, optional): Whether to load processed or preprocessed data.
+
+    Returns:
+        dict: A dictionary of DataFrames, one for each modality.
+        pd.Series: Metadata series indexed by INDEX_COL and containing TARGET values.
+    """    
     datModalities = {}
     try : 
         modalities = [mod for mod in MODALITIES]
@@ -48,6 +71,12 @@ def data_parsing(DATA_PATH , MODALITIES ,TARGET , INDEX_COL , PROCESSED=True) :
     return datModalities , meta
 
 def get_gpu_memory():
+    """
+    Retrieves and prints the current GPU memory usage statistics including total, reserved, and allocated memory amounts.
+
+    Returns:
+        None
+    """    
     t = torch.cuda.get_device_properties(0).total_memory*(1*10**-9)             
     r = torch.cuda.memory_reserved(0)*(1*10**-9)
     a = torch.cuda.memory_allocated(0)*(1*10**-9)
@@ -55,6 +84,17 @@ def get_gpu_memory():
     return print("Total = %1.1fGb \t Reserved = %1.1fGb \t Allocated = %1.1fGb" % (t,r,a))
 
 def indices_removal_adjust(idx_to_swap , all_idx,  new_idx) : 
+    """
+    Adjusts and filters indices after some have been removed, mapping old indices to new indices post-removal.
+
+    Parameters:
+        idx_to_swap (array-like): Indices that potentially need adjustment after an update.
+        all_idx (pd.Index): The complete set of original indices.
+        new_idx (array-like): The updated list of indices after some removals.
+
+    Returns:
+        np.array: Adjusted indices reflecting the new index placement.
+    """    
     update_idx = all_idx[all_idx.isin(new_idx)].reset_index()['index']
     
     update_idx_swap = pd.Series(update_idx.index , index=update_idx.values)
@@ -63,9 +103,17 @@ def indices_removal_adjust(idx_to_swap , all_idx,  new_idx) :
     
 
 def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
-    '''
-    Generate a networkx network from a as_long_data_frame() object from igraph in R
-    '''
+    """
+    Constructs a NetworkX graph from a CSV file containing network data.
+
+    Parameters:
+        NETWORK_PATH (str): The file path to the CSV containing the network data.
+        no_psn (bool): If True, performs special handling specific to pseudonetworks.
+        weighted (bool): Indicates if the network edges should consider weights (true for weighted edges).
+
+    Returns:
+        nx.Graph: The constructed NetworkX graph.
+    """
     # Open csv as pandas dataframe
     network = pd.read_csv(NETWORK_PATH , index_col=0)
 
@@ -105,6 +153,15 @@ def network_from_csv(NETWORK_PATH , no_psn , weighted=False ) :
     return G
 
 def init_weights(m):
+    """
+    Initializes weights for PyTorch layers within a model.
+
+    Parameters:
+        m (torch.nn.Module): The model or layer to initialize.
+
+    Effects:
+        Applied in-situ: Adjusts the weights of the model passed based on the type of layer.
+    """    
     if isinstance(m, GraphConv):
         m.reset_parameters() ## or simply use your layer.reset_parameters()
     if isinstance(m, nn.Linear):
