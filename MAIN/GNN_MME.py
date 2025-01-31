@@ -325,7 +325,7 @@ class GSage_MME(nn.Module):
         return y
     
 class GCN_MME(nn.Module):
-        """
+    """
     A multi-modal GraphSAGE model utilizing encoder modules for initial feature transformation, applying GraphConv convolution over the graph structure.
 
     This model combines several data modalities, each processed by separate encoders, integrates the encoded features, and performs graph-based learning to produce node embeddings or class scores.
@@ -694,7 +694,7 @@ class GCN_MME(nn.Module):
         return layer_importance_scores
     
 class GAT_MME(nn.Module):
-        """
+    """
     A multi-modal GAT (Graph Attention Network) model utilizing encoder modules for initial feature transformation, applying GATConv  convolution over the graph structure.
 
     This model combines several data modalities, each processed by separate encoders, integrates the encoded features, and performs graph-based learning to produce node embeddings or class scores.
