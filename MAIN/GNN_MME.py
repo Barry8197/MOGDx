@@ -8,7 +8,6 @@ from dgl.nn import GraphConv , SAGEConv, GATConv
 from dgl.dataloading import DataLoader, MultiLayerFullNeighborSampler
 import tqdm
 import sys
-from MAIN.utils import get_gpu_memory
 import gc
 import numpy as np
 import pandas as pd
