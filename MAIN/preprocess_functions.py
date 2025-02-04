@@ -189,7 +189,7 @@ def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None , fit_typ
     
     test = []
     for subtest in itertools.combinations(datMeta[condition].unique() , 2) : 
-        test.append([condition.replace('_' , '-') , subtest[0].replace('_' , '-') , subtest[1].replace('_' , '-')])
+        test.append([condition , subtest[0], subtest[1]])
 
     top_genes = []
     for subtest in test :
