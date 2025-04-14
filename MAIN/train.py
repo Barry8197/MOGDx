@@ -18,7 +18,25 @@ sys.path.insert(0 , os.path.dirname(os.path.abspath(__file__)))
 from preprocess_functions import gen_new_graph
 sys.path = orig_sys_path
 
-def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False , batch_size=1024):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False , batch_size=1024 , batch_size=1024):
+    """
+    Trains a model on the given graph data using specified parameters.
+
+    Parameters:
+        g (dgl.DGLGraph): The graph containing feature and label data.
+        train_index (list): Indices used for training the model.
+        device (str): Device type to use ('cuda' or 'cpu').
+        model (torch.nn.Module): Model to be trained.
+        labels (torch.Tensor): Labels for the training data.
+        epochs (int): Number of epochs to train the model.
+        lr (float): Learning rate for the optimizer.
+        patience (int): Patience for early stopping criterion.
+        pretrain (bool): Whether to preprocess data before training.
+        pnet (bool): Indicates the use of a Pathway Network model for data preprocessing.
+
+    Returns:
+        Either a graph or a matplotlib figure depending on the 'pretrain' parameter.
+    """    
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
@@ -120,6 +138,17 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
         return fig 
 
 def evaluate(model, graph, dataloader):
+    """
+    Evaluates the model performance on a validation set.
+
+    Parameters:
+        model (torch.nn.Module): Model to evaluate.
+        graph (dgl.DGLGraph): Graph from which data is to be loaded.
+        dataloader (torch.utils.data.DataLoader): DataLoader the supplies the evaluation data.
+
+    Returns:
+        tuple: A tuple containing the loss, accuracy, F1 score, precision, recall, logits and labels.
+    """    
     acc  = 0
     loss = 0
     loss_fcn = nn.CrossEntropyLoss()
@@ -152,7 +181,17 @@ def evaluate(model, graph, dataloader):
 
             
 def confusion_matrix(logits , targets , display_labels ) : 
+    """
+    Generates a confusion matrix plot from the predicted and true labels.
 
+    Parameters:
+        logits (torch.Tensor): Logits output from the model.
+        targets (torch.Tensor): True labels for the data.
+        display_labels (list): List of labels to display on the matrix axes.
+
+    Returns:
+        seaborn.axisgrid: Seaborn axis grid containing the confusion matrix plot.
+    """
     _, predicted = torch.max(logits, 1)
 
     _, true = torch.max(targets , 1)
@@ -164,7 +203,17 @@ def confusion_matrix(logits , targets , display_labels ) :
     return cmat
 
 def AUROC(logits, targets , meta) : 
+    """
+    Calculates the Area Under the Receiver Operating Characteristic curve (AUROC).
 
+    Parameters:
+        logits (torch.Tensor): The predicted outcomes from the model.
+        targets (torch.Tensor): The true outcomes.
+        meta (pd.Series): Metadata associated with the outcomes.
+
+    Returns:
+        tuple: Contains the matplotlib figure object, and the transformed prediction scores.
+    """
     n_classes = targets.shape[1]
     y_score = targets.cpu().detach().numpy()
 
@@ -225,6 +274,19 @@ def AUROC(logits, targets , meta) :
     return fig , Y_test
 
 def layerwise_infer(device, graph, nid, model, batch_size):
+    """
+    Perform inference in a layer-wise manner for subgraph provided.
+
+    Parameters:
+        device (str): The device on which the inference will be computed (e.g., 'cuda' or 'cpu').
+        graph (dgl.DGLGraph): The graph containing the nodes.
+        nid (list or tensor): Node IDs for which inference is to be performed.
+        model (nn.Module): The trained model.
+        batch_size (int): The size of batches to process the graph.
+
+    Returns:
+        float: Accuracy of prediction after inference.
+    """    
     model.eval()
     with torch.no_grad():
         pred = model.inference(
@@ -236,6 +298,16 @@ def layerwise_infer(device, graph, nid, model, batch_size):
         return sum(pred==label)/len(pred)
     
 def tsne_embedding_plot(emb , meta) : 
+    """
+    Generates a 2D t-SNE plot of embeddings colored by metadata labels.
+
+    Parameters:
+        emb (np.array): High-dimensional embeddings to be reduced.
+        meta (pd.Series): Metadata series containing labels to color the embeddings.
+
+    Returns:
+        None: Displays a t-SNE plot of embeddings.
+    """    
     tsne = TSNE(n_components=2, random_state=42, learning_rate='auto', init='random')
     embeddings_2d = tsne.fit_transform(emb)
     

@@ -21,12 +21,21 @@ import layer_conductance
 sys.path = orig_sys_path
 
 
-class Encoder(torch.nn.Module):
-    '''
-    PyTorch class specififying encoder of variable input and hidden dims
-    The forward function returns both hidden (encoded) and decoded (output). 
-    The function of this class is to perform dimensionality reduction on omic data.
-    '''
+class Encoder(nn.Module):
+    """
+    A simple feed-forward neural network used as an encoder with two linear layers separated by dropout and batch normalization.
+
+    Attributes:
+        encoder (nn.ModuleList): Contains the linear layers of the encoder.
+        norm (nn.ModuleList): Contains the batch normalization layers corresponding to each encoder layer.
+        decoder (torch.nn.Sequential): A sequential module containing the decoder part of the model.
+        drop (nn.Dropout): Dropout layer to prevent overfitting.
+
+    Args:
+        input_dim (int): Dimensionality of the input features.
+        latent_dim (int): Dimensionality of the latent space (middle layer's output).
+        output_dim (int): Dimensionality of the output features after decoding.
+    """
     def __init__(self , input_dim , latent_dim , output_dim):
         super().__init__()
         
@@ -61,6 +70,29 @@ class Encoder(torch.nn.Module):
         return decoded 
     
 class GSage_MME(nn.Module):
+    """
+    A multi-modal GraphSAGE model utilizing encoder modules for initial feature transformation, applying GraphSAGE convolution over the graph structure.
+
+    This model combines several data modalities, each processed by separate encoders, integrates the encoded features, and performs graph-based learning to produce node embeddings or class scores.
+
+    Attributes:
+        encoder_dims (nn.ModuleList): List of encoder modules for each modality of data.
+        gnnlayers (nn.ModuleList): List of GraphSAGE convolution layers for propagating and transforming node features across the graph.
+        batch_norms (nn.ModuleList): Batch normalization applied to the outputs of GNN layers except the last layer.
+        num_layers (int): Total number of GNN layers.
+        input_dims (list): List of input dimensions, one for each data modality.
+        hidden_feats (list): List of the feature dimensions for each hidden layer in the GNN.
+        num_classes (int): Number of output classes or the dimension of the output features.
+        drop (nn.Dropout): Dropout layer applied after each GNN layer for regularization.
+
+    Args:
+        input_dims (list): Input dimensions for each modality of input data.
+        latent_dims (list): Latent dimensions for corresponding encoders processing each modality of input data.
+        decoder_dim (int): Unified dimension to which all modalities are decoded.
+        hidden_feats (list): Dimensions for hidden layers of the GNN.
+        num_classes (int): Number of classes for classification tasks.
+        PNet (optional): A PNet model for embedding pathway networks, used as an optional modality-specific encoder.
+    """
     def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes, PNet=None):
         
         super().__init__()
@@ -100,7 +132,16 @@ class GSage_MME(nn.Module):
         self.drop = nn.Dropout(0.5)
 
     def forward(self, g , h):
-        # list of hidden representation at each layer (including the input layer)
+        """
+        Forward pass for GSage_MME embedding computation.
+
+        Args:
+            g (dgl.DGLGraph): Input graph.
+            h (torch.Tensor): Feature matrix.
+
+        Returns:
+            torch.Tensor: Output after passing through the GNN layers.
+        """
         
         prev_dim = 0
         node_features = 0
@@ -136,7 +177,18 @@ class GSage_MME(nn.Module):
         return h
     
     def inference(self, g , h , device , batch_size):
-    # list of hidden representation at each layer (including the input layer)
+        """
+        Perform a forward pass using the model for inference, without computing gradients. Usually used after the model has been trained.
+
+        Args:
+            g (dgl.DGLGraph): The DGL graph on which inference is performed.
+            h (torch.Tensor): Node features for all nodes in the graph.
+            device (torch.device): The device tensors will be sent to.
+            batch_size (int): The size of batches to use during inference.
+
+        Returns:
+            torch.Tensor: The outputs of the inference.
+        """
 
         prev_dim = 0
         node_features = 0
@@ -200,7 +252,18 @@ class GSage_MME(nn.Module):
         return y
     
     def embedding_extraction(self, g , h , device , batch_size):
-    # list of hidden representation at each layer (including the input layer)
+        """
+        Extract embeddings for the nodes in the graph. This method is typically used to retrieve node embeddings that can then be used for visualization, clustering, or as input for downstream tasks.
+
+        Args:
+            g (dgl.DGLGraph): The graph for which embeddings are to be retrieved.
+            h (torch.Tensor): Node features tensor.
+            device (torch.device): The device to perform computations on.
+            batch_size (int): Size of the batches to use during the computation.
+
+        Returns:
+            torch.Tensor: Node embeddings extracted by the model.
+        """
 
         prev_dim = 0
         node_features = 0
@@ -264,6 +327,29 @@ class GSage_MME(nn.Module):
         return y
     
 class GCN_MME(nn.Module):
+    """
+    A multi-modal GraphSAGE model utilizing encoder modules for initial feature transformation, applying GraphConv convolution over the graph structure.
+
+    This model combines several data modalities, each processed by separate encoders, integrates the encoded features, and performs graph-based learning to produce node embeddings or class scores.
+
+    Attributes:
+        encoder_dims (nn.ModuleList): List of encoder modules for each modality of data.
+        gnnlayers (nn.ModuleList): List of GraphConv convolution layers for propagating and transforming node features across the graph.
+        batch_norms (nn.ModuleList): Batch normalization applied to the outputs of GNN layers except the last layer.
+        num_layers (int): Total number of GNN layers.
+        input_dims (list): List of input dimensions, one for each data modality.
+        hidden_feats (list): List of the feature dimensions for each hidden layer in the GNN.
+        num_classes (int): Number of output classes or the dimension of the output features.
+        drop (nn.Dropout): Dropout layer applied after each GNN layer for regularization.
+
+    Args:
+        input_dims (list): Input dimensions for each modality of input data.
+        latent_dims (list): Latent dimensions for corresponding encoders processing each modality of input data.
+        decoder_dim (int): Unified dimension to which all modalities are decoded.
+        hidden_feats (list): Dimensions for hidden layers of the GNN.
+        num_classes (int): Number of classes for classification tasks.
+        PNet (optional): A PNet model for embedding pathway networks, used as an optional modality-specific encoder.
+    """
     def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats , num_classes, PNet=None):
         
         super().__init__()
@@ -304,7 +390,16 @@ class GCN_MME(nn.Module):
         self.drop = nn.Dropout(0.5)
 
     def forward(self, h , g):
-        # list of hidden representation at each layer (including the input layer)
+        """
+        Forward pass for GSage_MME embedding computation.
+
+        Args:
+            g (dgl.DGLGraph): Input graph.
+            h (torch.Tensor): Feature matrix.
+
+        Returns:
+            torch.Tensor: Output after passing through the GNN layers.
+        """
         
         prev_dim = 0
         x = []
@@ -338,7 +433,18 @@ class GCN_MME(nn.Module):
         return x
     
     def inference(self, g , h , device , batch_size):
-    # list of hidden representation at each layer (including the input layer)
+        """
+        Perform a forward pass using the model for inference, without computing gradients. Usually used after the model has been trained.
+
+        Args:
+            g (dgl.DGLGraph): The DGL graph on which inference is performed.
+            h (torch.Tensor): Node features for all nodes in the graph.
+            device (torch.device): The device tensors will be sent to.
+            batch_size (int): The size of batches to use during inference.
+
+        Returns:
+            torch.Tensor: The outputs of the inference.
+        """
 
         prev_dim = 0
         node_features = 0
@@ -402,7 +508,18 @@ class GCN_MME(nn.Module):
         return y
     
     def embedding_extraction(self, g , h , device , batch_size):
-    # list of hidden representation at each layer (including the input layer)
+        """
+        Extract embeddings for the nodes in the graph. This method is typically used to retrieve node embeddings that can then be used for visualization, clustering, or as input for downstream tasks.
+
+        Args:
+            g (dgl.DGLGraph): The graph for which embeddings are to be retrieved.
+            h (torch.Tensor): Node features tensor.
+            device (torch.device): The device to perform computations on.
+            batch_size (int): Size of the batches to use during the computation.
+
+        Returns:
+            torch.Tensor: Node embeddings extracted by the model.
+        """
 
         prev_dim = 0
         node_features = 0
@@ -487,7 +604,7 @@ class GCN_MME(nn.Module):
                 feature_importances_batch = feature_importances[output_nodes - 1]
                 
                 x = blocks[0].srcdata["feat"]
-                y = blocks[-1].dstdata["label"].max(dim=1)[1]
+                y = self.forward(x , blocks).max(dim=1)[1]
                 
                 n = x.shape[0]
                 nan_rows = torch.isnan(x[: , prev_dim:prev_dim + dim]).any(dim=1)
@@ -553,7 +670,7 @@ class GCN_MME(nn.Module):
                 cond_vals = []
                 for it, (input_nodes, output_nodes, blocks) in enumerate(test_dataloader):
                     x = blocks[0].srcdata["feat"]
-                    y = blocks[-1].dstdata["label"].max(dim=1)[1]
+                    y = self.forward(x , blocks).max(dim=1)[1]
                     
                     n = x.shape[0]
                     nan_rows = torch.isnan(x[: , prev_dim:prev_dim + dim]).any(dim=1)
@@ -602,6 +719,29 @@ class GCN_MME(nn.Module):
         return layer_importance_scores
     
 class GAT_MME(nn.Module):
+    """
+    A multi-modal GAT (Graph Attention Network) model utilizing encoder modules for initial feature transformation, applying GATConv  convolution over the graph structure.
+
+    This model combines several data modalities, each processed by separate encoders, integrates the encoded features, and performs graph-based learning to produce node embeddings or class scores.
+
+    Attributes:
+        encoder_dims (nn.ModuleList): List of encoder modules for each modality of data.
+        gnnlayers (nn.ModuleList): List of GATConv convolution layers for propagating and transforming node features across the graph.
+        batch_norms (nn.ModuleList): Batch normalization applied to the outputs of GNN layers except the last layer.
+        num_layers (int): Total number of GNN layers.
+        input_dims (list): List of input dimensions, one for each data modality.
+        hidden_feats (list): List of the feature dimensions for each hidden layer in the GNN.
+        num_classes (int): Number of output classes or the dimension of the output features.
+        drop (nn.Dropout): Dropout layer applied after each GNN layer for regularization.
+
+    Args:
+        input_dims (list): Input dimensions for each modality of input data.
+        latent_dims (list): Latent dimensions for corresponding encoders processing each modality of input data.
+        decoder_dim (int): Unified dimension to which all modalities are decoded.
+        hidden_feats (list): Dimensions for hidden layers of the GNN.
+        num_classes (int): Number of classes for classification tasks.
+        PNet (optional): A PNet model for embedding pathway networks, used as an optional modality-specific encoder.
+    """
     def __init__(self, input_dims, latent_dims , decoder_dim , hidden_feats, num_classes, PNet=None):
         
         super().__init__()
@@ -642,7 +782,16 @@ class GAT_MME(nn.Module):
         self.drop = nn.Dropout(0.5)
 
     def forward(self, g , h):
-        # list of hidden representation at each layer (including the input layer)
+        """
+        Forward pass for GSage_MME embedding computation.
+
+        Args:
+            g (dgl.DGLGraph): Input graph.
+            h (torch.Tensor): Feature matrix.
+
+        Returns:
+            torch.Tensor: Output after passing through the GNN layers.
+        """
         
         prev_dim = 0
         node_features = 0
@@ -679,7 +828,18 @@ class GAT_MME(nn.Module):
         return h
     
     def inference(self, g , h , device , batch_size):
-    # list of hidden representation at each layer (including the input layer)
+        """
+        Perform a forward pass using the model for inference, without computing gradients. Usually used after the model has been trained.
+
+        Args:
+            g (dgl.DGLGraph): The DGL graph on which inference is performed.
+            h (torch.Tensor): Node features for all nodes in the graph.
+            device (torch.device): The device tensors will be sent to.
+            batch_size (int): The size of batches to use during inference.
+
+        Returns:
+            torch.Tensor: The outputs of the inference.
+        """
 
         prev_dim = 0
         node_features = 0
@@ -744,7 +904,18 @@ class GAT_MME(nn.Module):
         return y
     
     def embedding_extraction(self, g , h , device , batch_size):
-    # list of hidden representation at each layer (including the input layer)
+        """
+        Extract embeddings for the nodes in the graph. This method is typically used to retrieve node embeddings that can then be used for visualization, clustering, or as input for downstream tasks.
+
+        Args:
+            g (dgl.DGLGraph): The graph for which embeddings are to be retrieved.
+            h (torch.Tensor): Node features tensor.
+            device (torch.device): The device to perform computations on.
+            batch_size (int): Size of the batches to use during the computation.
+
+        Returns:
+            torch.Tensor: Node embeddings extracted by the model.
+        """
 
         prev_dim = 0
         node_features = 0
