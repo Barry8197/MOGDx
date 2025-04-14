@@ -12,13 +12,13 @@ from sklearn.manifold import TSNE
 import seaborn as sns
 import sys
 import os
+import gc
 orig_sys_path = sys.path[:]
 sys.path.insert(0 , os.path.dirname(os.path.abspath(__file__)))
 from preprocess_functions import gen_new_graph
 sys.path = orig_sys_path
-import gc
 
-def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False , batch_size=1024):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False , batch_size=1024 , batch_size=1024):
     """
     Trains a model on the given graph data using specified parameters.
 
