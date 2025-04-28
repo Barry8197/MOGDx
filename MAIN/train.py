@@ -18,7 +18,7 @@ sys.path.insert(0 , os.path.dirname(os.path.abspath(__file__)))
 from preprocess_functions import gen_new_graph
 sys.path = orig_sys_path
 
-def train(g, train_index, device ,  model , labels , epochs , lr , patience, pretrain = False , pnet=False , batch_size=1024 , batch_size=1024):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience, n_node_samples=-1, batch_size=1024, weight_decay=1e-4, step_size=50, gamma=0.5, pretrain = False , pnet=False , inductive = False):
     """
     Trains a model on the given graph data using specified parameters.
 
@@ -40,25 +40,39 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
     # loss function, optimizer and scheduler
     #loss_fcn = nn.BCEWithLogitsLoss()
     loss_fcn = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=lr , weight_decay=1e-4)
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.5)
+    optimizer = optim.Adam(model.parameters(), lr=lr , weight_decay=weight_decay)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
     
     sampler = NeighborSampler(
-        [15 for i in range(len(model.gnnlayers))],  # fanout for each layer
+        [n_node_samples for i in range(len(model.gnnlayers))],  # fanout for each layer
         prefetch_node_feats=['feat'],
         prefetch_labels=['label'],
     )
-    train_dataloader = DataLoader(
-        g,
-        torch.Tensor(train_index).to(torch.int64).to(device),
-        sampler,
-        device=device,
-        batch_size=batch_size,
-        shuffle=True,
-        drop_last=False,
-        num_workers=0,
-        use_uva=False,
-    )
+
+    if inductive : 
+        train_dataloader = DataLoader(
+            g.subgraph(train_index, relabel_nodes = False , store_ids = False),
+            torch.Tensor(train_index).to(torch.int64).to(device),
+            sampler,
+            device=device,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=False,
+            num_workers=0,
+            use_uva=False,
+        )        
+    else : 
+        train_dataloader = DataLoader(
+            g,
+            torch.Tensor(train_index).to(torch.int64).to(device),
+            sampler,
+            device=device,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=False,
+            num_workers=0,
+            use_uva=False,
+        )
 
     best_loss = float('inf')
     consecutive_epochs_without_improvement = 0
@@ -137,13 +151,12 @@ def train(g, train_index, device ,  model , labels , epochs , lr , patience, pre
     else : 
         return fig 
 
-def evaluate(model, graph, dataloader):
+def evaluate(model, dataloader):
     """
     Evaluates the model performance on a validation set.
 
     Parameters:
         model (torch.nn.Module): Model to evaluate.
-        graph (dgl.DGLGraph): Graph from which data is to be loaded.
         dataloader (torch.utils.data.DataLoader): DataLoader the supplies the evaluation data.
 
     Returns:

@@ -32,6 +32,11 @@ warnings.filterwarnings("ignore")
 print("Finished Library Import \n")
 
 def main(args): 
+    '''
+    Main function to run the MOGDx model.
+    Args:
+        args (argparse.Namespace): Command line arguments.
+    '''
     
     # Map model names to class objects
     model_mapping = {
@@ -55,6 +60,7 @@ def main(args):
     # Load data and metadata
     datModalities , meta = data_parsing(args.input , args.modalities , args.target , args.index_col)
 
+    # Set up feature interpretation scoring
     if args.interpret_feat : 
         features = {}
         for i , mod in enumerate(datModalities) : 
@@ -62,39 +68,54 @@ def main(args):
         model_scores = {}
         layer_importance_scores = {}
 
+    # Implementation of PNet if selected at command line
     if args.pnet : 
         # List of genes of interest in PNet (keep to less than 1000 for big models)
-        genes = pd.read_csv(f'{args.input}/../ext_data/genelist.txt', header=0 , delimiter='\t')
+        genes = pd.read_csv('./../data/genelists/BRCA_genelist.txt', header=0 , delimiter='\t')
 
         # Build network to obtain gene and pathway relationships
         net = ReactomeNetwork(genes_of_interest=np.unique(list(genes['genes'].values)) , n_levels=5)
 
-    # Load SNF graph
-    if args.gen_net : 
-        if args.embeddings : 
-            input_dir = f'{args.input}/../ext_data/'
-            g, meta = gen_net_from_data(meta , args.tmpt , input_dir , args.section , args.emb_model, args.meanpool , args.embeddings ,args.snf_emb)
-        else : 
-            g, meta = gen_net_from_data(meta , args.tmpt , args.input, args.section , args.embeddings, args.meanpool, args.embeddings, args.snf_emb)
-    else :
-        graph_file = args.input + '/../Networks/' + args.tmpt + '_' +  '_'.join(sorted(args.modalities)) + '_graph.graphml'
-        g = nx.read_graphml(graph_file)
+    # Load graph
+    #graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
+    #print(f'Using graph {graph_file}')
+    graph_file = args.input + '/../ThesisExpts/ModSimilarity/' + args.network 
+    g = nx.read_graphml(graph_file)
+    # Encoder Only Implementation - remove all edges no - network structure
+    #g.remove_edges_from(list(g.edges()))
 
+    # Remove any nodes not in the metadata
     meta = meta.loc[list(g.nodes())]
     meta = meta.loc[sorted(meta.index)]
 
     # Get the unique labels in the metadata
     label = F.one_hot(torch.Tensor(list(meta.astype('category').cat.codes)).to(torch.int64))
 
+    # Specify the dimensions of the input features and the encoder (default to 500)
     MME_input_shapes = [ datModalities[mod].shape[1] for mod in datModalities]
+    if args.encoder_dim is None : 
+        encoder_dims = [500 for mod in datModalities]
+    else : 
+        encoder_dimes = args.encoder_dim
 
+    # Setup the node features for the GNN
     h = reduce(merge_dfs , list(datModalities.values()))
     h = h.loc[meta.index]
     h = h.loc[sorted(h.index)]
 
+    # PSN Only Implementation - No Node Features - One hot encode each node individually 
+    #h = pd.DataFrame(np.eye(len(meta.index)))
+    #MME_input_shapes = [len(meta.index)]
+
+    # Transfer the network from networkx to dgl
     g = dgl.from_networkx(g , node_attrs=['idx' , 'label'])
-    g.ndata['feat'] = torch.Tensor(h.to_numpy())
-    g.ndata['label'] = label
+
+    # Also required for encoder only implementation
+    #g = dgl.add_self_loop(g)
+
+    g.ndata['feat'] = torch.Tensor(h.to_numpy()) # Node features
+    g.ndata['label'] = label # Node labels
+    g = g.to(device) # Transfer to device
 
     del datModalities
     gc.collect()
@@ -103,7 +124,7 @@ def main(args):
     if args.no_shuffle : 
         skf = StratifiedKFold(n_splits=args.n_splits , shuffle=False) 
     else :
-        skf = StratifiedKFold(n_splits=args.n_splits , shuffle=True) 
+        skf = StratifiedKFold(n_splits=args.n_splits , shuffle=True)
 
     print(skf)
 
@@ -115,25 +136,25 @@ def main(args):
 
         # Initialize model
         if args.pnet : 
-            model = model_mapping[args.model](MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), PNet=net).to(device)
+            model = model_mapping[args.model](MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, PNet=net).to(device)
         else :
-            model = model_mapping[args.model](MME_input_shapes , args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique())).to(device)
+            model = model_mapping[args.model](MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout).to(device)
         
         print(model)
         print(g)
-        
-        g = g.to(device)
 
         # Train the model
-        loss_plot = train(g, train_index, device ,  model , label , args.epochs , args.lr , args.patience)
+        loss_plot = train(g, train_index, device ,  model , label , args.epochs , args.lr , args.patience, args.n_nodes_samples , args.batch_size, args.weight_decay , args.step_size, args.gamma, args.inductive)
         plt.title(f'Loss for split {i}')
         save_path = args.output + '/loss_plots/'
         os.makedirs(save_path, exist_ok=True)
         plt.savefig(f'{save_path}loss_split_{i}.png' , dpi = 200)
         plt.clf()
         
-        sampler = MultiLayerFullNeighborSampler(
-            len(model.gnnlayers),  # fanout for each layer
+        # Evaluate the model
+        # Create a dataloader for the test set
+        sampler = NeighborSampler(
+            [args.n_nodes_samples for i in range(len(model.gnnlayers))],  # fanout for each layer
             prefetch_node_feats=['feat'],
             prefetch_labels=['label'],
         )
@@ -143,15 +164,14 @@ def main(args):
             torch.Tensor(test_index).to(torch.int64).to(device),
             sampler,
             device=device,
-            batch_size=1024,
+            batch_size=args.batch_size,
             shuffle=True,
             drop_last=False,
             num_workers=0,
             use_uva=False,
         )
-
-        # Evaluate the model
-        test_output_metrics = evaluate(model , g , test_dataloader)
+        # Evaluate the model on the test set
+        test_output_metrics = evaluate(model, test_dataloader)
 
         print(
             "Fold : {:01d} | Test Accuracy = {:.4f} | F1 = {:.4f} ".format(
@@ -162,6 +182,7 @@ def main(args):
         test_logits.extend(test_output_metrics[-2])
         test_labels.extend(test_output_metrics[-1])
         
+        # Generated model scores and save them for feature interpretation
         if args.interpret_feat : 
             get_gpu_memory()
             torch.cuda.empty_cache()
@@ -186,6 +207,7 @@ def main(args):
             mean_absolute_distance = [sum([layer_importance_scores[i][k][ii].abs().mean() for k in layer_importance_scores[i].keys()]) for ii in range(n_layers)]
             summed_variation_attr  = [sum([layer_importance_scores[i][k][ii].std()/max(layer_importance_scores[i][k][ii].std()) for k in layer_importance_scores[i].keys()]) for ii in range(n_layers)]
         
+            # Save the mean absolute distance and summed variation attribute for each layer
             for ii , (mad , sva) in  enumerate(zip(mean_absolute_distance , summed_variation_attr)) :
                 layer_title = f"Pathway Level {ii} Importance" if ii > 0 else "Gene Importance"
                 if i == 0 : 
@@ -212,13 +234,22 @@ def main(args):
         print('Clearing gpu memory')
         get_gpu_memory()
 
+    # Convert the test logits and labels to tensors
     test_logits = torch.stack(test_logits)
     test_labels = torch.stack(test_labels)
     
+    # Save the model scores for feature interpretation
     if args.interpret_feat : 
         with open(f'{args.output}/model_scores.pkl', 'wb') as file:
             pickle.dump(model_scores, file)
-            
+
+    # Stop the timer
+    end_time = time.time()
+
+    # Calculate and print the elapsed time
+    elapsed_time = (end_time - start_time)/60
+    print(f"Elapsed time: {elapsed_time} minutes")
+
     # Save the output metrics to a file   
     accuracy = []
     F1 = []
@@ -237,6 +268,8 @@ def main(args):
         f.write('-------------------------\n')
         f.write("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f \n" %(args.n_splits , np.mean(accuracy)*100 , np.std(accuracy)*100))
         f.write("%i Fold Cross Validation F1 = %2.2f \u00B1 %2.2f \n" %(args.n_splits , np.mean(F1)*100 , np.std(F1)*100))
+        f.write("N Patients = %i \n" %(len(meta)))
+        f.write("Elapsed Time = %2.2f \n" %(elapsed_time))
         f.write('-------------------------\n')
 
     print("%i Fold Cross Validation Accuracy = %2.2f \u00B1 %2.2f" %(5 , np.mean(accuracy)*100 , np.std(accuracy)*100))
@@ -249,6 +282,7 @@ def main(args):
     month = current_date.strftime('%B')[:3]  # Full month name
     day = current_date.day
     
+    # Save the best model
     save_path = args.output + '/Models/'
     os.makedirs(save_path, exist_ok=True)
     torch.save({
@@ -256,16 +290,21 @@ def main(args):
         # You can add more information to save, such as training history, hyperparameters, etc.
     }, f'{save_path}GCN_MME_model_{month}{day}' )
     
+    # Generate the confusion matrix and precision-recall plot if selected
     if args.no_output_plots : 
+
+        # Confusion matrix plot generation
         cmplt = confusion_matrix(test_logits , test_labels , meta.astype('category').cat.categories)
         plt.title('Test Accuracy = %2.1f %%' % (np.mean(accuracy)*100))
         output_file = args.output + '/' + "confusion_matrix.png"
         plt.savefig(output_file , dpi = 300)
         
+        # Precision recall plot generation
         precision_recall_plot , all_predictions_conf = AUROC(test_logits, test_labels , meta)
         output_file = args.output + '/' + "precision_recall.png"
         precision_recall_plot.savefig(output_file , dpi = 300)
 
+        # Individual node predictions
         node_predictions = []
         node_true        = []
         display_label = meta.astype('category').cat.categories
@@ -275,6 +314,7 @@ def main(args):
 
         pd.DataFrame({'Actual' :node_true , 'Predicted' : node_predictions}).to_csv(args.output + '/Predictions.csv')
         
+        # Feature importance bar plot generation
         if args.interpret_feat : 
             for i, layer in enumerate(model_scores):
                 if i == 0 :
@@ -288,14 +328,6 @@ def main(args):
                     fig = visualize_importances(
                         model_scores[layer]['sva'].mean(axis=0), title=f"Average {layer_title}")
                     fig.savefig(f'{args.output}/{layer_title}' , dpi = 300)
-
-    # Stop the timer
-    end_time = time.time()
-
-    # Calculate and print the elapsed time
-    elapsed_time = (end_time - start_time)/60
-    print(f"Elapsed time: {elapsed_time} minutes")
-
         
 def construct_parser():
     """
@@ -309,19 +341,24 @@ def construct_parser():
     parser = argparse.ArgumentParser(description='MOGDx')
     parser.add_argument('--epochs', type=int, default=100, metavar='N',
                         help='number of epochs to train (default: 10)')
-    parser.add_argument('--lr', type=float, default=0.1, metavar='LR',
+    parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 1.0)')
     parser.add_argument('--patience', type=float, default=100,
                         help='Early Stopping Patience (default: 100 batches of 5 -> equivalent of 100*5 = 500)')
-    #parser.add_argument('--gamma', type=float, default=0.7, metavar='M',
-    #                    help='Learning rate step gamma (default: 0.7)')
+    parser.add_argument('--gamma', type=float, default=0.5, metavar='M',
+                        help='Learning rate step gamma (default: 0.5)')
+    parser.add_argument('--dropout', type=float, default=0.5, metavar='M',
+                        help='GCN Dropout Regularisation (default: 0.5)')
+    parser.add_argument('--encoder-dropout', type=float, default=0.5, metavar='M',
+                        help='Multi Modal Encoder Dropout Regularisation (default: 0.5)')
+    parser.add_argument('--weight-decay', type=float, default=1e-4, metavar='M',
+                        help='Learning rate weight decay (default: 1e-4)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
-    #parser.add_argument('--seed', type=int, default=None, metavar='S',
-    #                    help='random seed (default: random number)')
-    #parser.add_argument('--log-interval', type=int, default=10, metavar='N',
-    #                    help='how many batches to wait before logging '
-    #                    'training status')
+    parser.add_argument('--batch-size', type=int, default=1024, metavar='N',
+                        help='Training batch size (default: 1024)')
+    parser.add_argument('--step-size', type=int, default=50, metavar='N',
+                        help='Optimizer step size (default: 50)')    
     parser.add_argument('--no-output-plots', action='store_false' , default=True,
                         help='Disables Confusion Matrix and TSNE plots')
     parser.add_argument('--split-val', action='store_false' , default=True,
@@ -346,22 +383,18 @@ def construct_parser():
     #parser.add_argument('--layer-activation', default=['elu' , 'elu'] , nargs="+" , type=str , help='List of activation'
     #                    'functions for each GNN layer')
 
-    parser.add_argument('--tmpt' , type=str , default='BL', 
-                        help ='Time point for which to generate PSN.')
+    parser.add_argument('-enc', '--encoder-dim', required=False, default=None, nargs="+", type=int , help='List of integers '
+                        'corresponding to the dimension of the fisrt encoder layer for each modality')
     parser.add_argument('--pnet', action='store_true' , default=False,
                         help='Flag for using PNet encoder. Requires gene list called genelist.txt in a folder called ext_data.')
-    parser.add_argument('--gen-net', action='store_true' , default=False,
-                        help='Flag for generating the network from embeddings')
-    parser.add_argument('--embeddings', action='store_true' , default=False,
-                        help='Flag for generating the network from embeddings')
-    parser.add_argument('--snf-emb', action='store_true' , default=False,
-                        help='Flag for performing snf on embeddings')
-    parser.add_argument('--meanpool', action='store_true' , default=False,
-                        help='Flag for switching between meanpool and last token')
-    parser.add_argument('--interpret_feat', action='store_true' , default=False,
+    parser.add_argument('--inductive', action='store_true' , default=False,
+                        help='Train MOGDx in the inductive setting.')
+    parser.add_argument('--n-nodes-samples', type=int, default=-1, metavar='N',
+                        help='Number of neighbours to sample from (default : -1 (all neighbours)')
+    parser.add_argument('-net', '--network', required=True, help='Name of the network'
+                        'graphml file')
+    parser.add_argument('--interpret-feat', action='store_true' , default=False,
                         help='Flag for interpreting features')
-    parser.add_argument('--emb-model', required=False, help='Specify the embedding model')
-    parser.add_argument('--section', required=False, help='Specify the mds-updrs section')
     parser.add_argument('--h-feats', required=True, nargs="+" ,type=int , help ='Integer specifying hidden dim of GNN'
                     'specifying GNN layer size')
     parser.add_argument('-i', '--input', required=True, help='Path to the '

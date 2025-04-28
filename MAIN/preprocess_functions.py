@@ -115,8 +115,19 @@ def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1
     
     scaler = StandardScaler()
 
-    x_train = torch.Tensor(scaler.fit_transform(count_mtx.values)).to(device)
-    y_train = F.one_hot(torch.Tensor(datMeta.astype('category').cat.codes).to(torch.int64)).to(device).to(torch.float64)
+    if train_index is None : 
+        x_train = torch.Tensor(scaler.fit_transform(count_mtx.values)).to(device)
+        y_train = F.one_hot(torch.Tensor(datMeta.astype('category').cat.codes).to(torch.int64)).to(device).to(torch.float64)
+    else : 
+        x_train = torch.Tensor(scaler.fit_transform(count_mtx.loc[train_index].values)).to(device)
+        y_train = F.one_hot(torch.Tensor(datMeta.loc[train_index].astype('category').cat.codes).to(torch.int64)).to(device).to(torch.float64)
+
+    if val_index is None : 
+        x_test = x_train
+        y_test = y_train 
+    else : 
+        x_test = torch.Tensor(scaler.fit_transform(count_mtx.loc[val_index].values)).to(device)
+        y_test = F.one_hot(torch.Tensor(datMeta.loc[val_index].astype('category').cat.codes).to(torch.int64)).to(device).to(torch.float64)
     
     # Inside your training loop
     # Initialize tqdm for epochs
@@ -143,8 +154,8 @@ def elastic_net(count_mtx , datMeta , train_index = None , val_index = None , l1
     # Close tqdm for epochs
     epoch_progress.close()
     
-    logits = model(x_train)
-    score = model.accuracy(logits, y_train)
+    logits = model(x_test)
+    score = model.accuracy(logits, y_test)
     print('Model score : %1.3f' % score)
     
     extracted_feats = []
@@ -174,8 +185,22 @@ def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None , fit_typ
     """    
     datMeta = datMeta.reset_index()
     datMeta.index = datMeta['index']
-    
+
     inference = DefaultInference(n_cpus=8)
+    if train_index is not None : 
+        dds_full = DeseqDataSet(
+        counts=count_mtx,
+        metadata=datMeta.loc[count_mtx.index],
+        design_factors=condition,
+        refit_cooks=True,
+        inference=inference,
+        # n_cpus=8, # n_cpus can be specified here or in the inference object
+        )
+    
+        dds_full.deseq2()
+        
+        count_mtx = count_mtx.loc[train_index]
+        
     dds = DeseqDataSet(
         counts=count_mtx,
         metadata=datMeta.loc[count_mtx.index],
@@ -199,10 +224,14 @@ def DESEQ(count_mtx , datMeta , condition , n_genes , train_index=None , fit_typ
         results = stat_res.results_df
         results = results[results['padj'] < 0.05]
         top_genes.extend(list(results.sort_values('padj').index[:n_genes]))
-        
-    DeseqDataSet.vst(dds , fit_type = fit_type)
-    vsd = dds.layers["vst_counts"]
-        
+
+    if train_index is None :         
+        DeseqDataSet.vst(dds , fit_type = fit_type)
+        vsd = dds.layers["vst_counts"]
+    else : 
+        DeseqDataSet.vst(dds_full , fit_type = fit_type)
+        vsd = dds_full.layers["vst_counts"]
+    
     return dds , vsd , top_genes
 
 def data_preprocess(count_mtx , datMeta , gene_exp = False) :
@@ -324,8 +353,10 @@ def create_similarity_matrix(mat , method = 'euclidean') :
         adj = abs_bicorr(mat.T)
     elif method == 'pearson' : 
         adj = pearson_corr(mat.T)
-    elif method == 'pearson' : 
+    elif method == 'cosine' : 
         adj = cosine_corr(mat.T)
+    elif method == 'hamming' : 
+        adj = hamming_dist(mat.T)
     else : 
         distances = pdist(mat.values, metric='euclidean')
         dist_matrix = squareform(distances)
@@ -426,6 +457,33 @@ def cosine_corr(data, mat_means=True) :
         
     return pd.DataFrame(data = correl , index=idx , columns=cols , dtype=np.float32)
 
+def hamming_dist(data, mat_means=True) : 
+    """
+    Calculate the pairwise Hamming distance between rows (patients) in a DataFrame.
+    
+    Args:
+    df (pandas.DataFrame): Input DataFrame where rows are patients and columns are features.
+    
+    Returns:
+    pandas.DataFrame: A DataFrame representing the pairwise Hamming distances.
+    """
+    # Initialize a matrix to store Hamming distances
+    data = data._get_numeric_data()
+    cols = data.columns
+    idx = cols.copy()
+    mat = data.to_numpy(dtype=float, na_value=np.nan, copy=False)
+    mat = mat.T
+
+    # Expand dimensions and compute difference array, using broadcasting
+    differences = mat[:, np.newaxis, :] != mat[np.newaxis, :, :]
+    
+    # Sum differences along the features axis to compute the Hamming distance
+    hamming_distances = np.sum(differences, axis=2)
+    
+    # Convert the resulting matrix back into a DataFrame
+    return pd.DataFrame(hamming_distances, index=idx, columns=cols)
+    
+
 def knn_graph_generation(datExpr , datMeta , knn = 20 , method = 'euclidean' ,extracted_feats = None, **args) : 
     """
     Generates a k-nearest neighbor graph based on the specified data and method of similarity.
@@ -457,7 +515,7 @@ def knn_graph_generation(datExpr , datMeta , knn = 20 , method = 'euclidean' ,ex
     else : 
         node_size = args['node_size']
     
-    G = plot_knn_network(adj , knn , datMeta , node_colours=node_colour , node_size=node_size)
+    G = gen_knn_network(adj , knn , datMeta , node_colours=node_colour , node_size=node_size)
 
     return G
 
@@ -473,19 +531,19 @@ def get_k_neighbors(matrix, k , corr=True):
     Returns:
         dict: A dictionary where keys are indices (or node names) and values are lists of k-nearest neighbors' indices.
     """    
-    dist_mtx = scipy.spatial.distance_matrix(matrix.values ,  matrix.values)
-    dist_mtx = pd.DataFrame(dist_mtx , index = matrix.index , columns = matrix.index)
+    #dist_mtx = scipy.spatial.distance_matrix(matrix.values ,  matrix.values)
+    #dist_mtx = pd.DataFrame(dist_mtx , index = matrix.index , columns = matrix.index)
     #if corr == True : 
     #    matrix.loc[: , :] = 1 - matrix.values
     
     k_neighbors = {}
-    for node in dist_mtx:
-        neighbors = dist_mtx.loc[node].nsmallest(k + 1).index.tolist()[1:]  # Exclude the node itself
+    for node in matrix:
+        neighbors = matrix.loc[node].nlargest(k + 1).index.tolist()[1:]  # Exclude the node itself
         k_neighbors[node] = neighbors
         
     return k_neighbors
 
-def plot_knn_network(data , K , labels ,  node_colours = 'skyblue' , node_size = 300) : 
+def gen_knn_network(data , K , labels ,  node_colours = 'skyblue' , node_size = 300 , plot=True) : 
     """
     Plots a k-nearest neighbors network using NetworkX.
 
@@ -516,16 +574,138 @@ def plot_knn_network(data , K , labels ,  node_colours = 'skyblue' , node_size =
         for neighbor in neighbors:
             G.add_edge(node, neighbor)
 
-    plt.figure(figsize=(10, 8))
-    nx.draw(G, with_labels=False, font_weight='bold', node_size=node_size, node_color=node_colours, font_size=8)
-    patches = []
-    for col , lab in zip(node_colours.unique() , labels.unique()) : 
-        patches.append(mpatches.Patch(color=col, label=lab))
-    plt.legend(handles=patches)
-    plt.show()
+    if plot == True : 
+        plt.figure(figsize=(10, 8))
+        nx.draw(G, with_labels=False, font_weight='bold', node_size=node_size, node_color=node_colours, font_size=8)
+        patches = []
+        for col , lab in zip(node_colours.unique() , labels.unique()) : 
+            patches.append(mpatches.Patch(color=col, label=lab))
+        plt.legend(handles=patches)
+        plt.show()
     
     return G
 
+def threshold_adjacency_matrix(adj, percentile=10):
+    """
+    Thresholds an adjacency matrix to keep only the top percentile of the strongest edges.
+
+    Args:
+    matrix (np.ndarray): A 2D NumPy array representing the adjacency matrix with Pearson correlations.
+    percentile (float): The percentile of edges to retain.
+
+    Returns:
+    np.ndarray: The thresholded adjacency matrix.
+    """
+    idx = adj.index
+    matrix = adj.to_numpy()
+    np.fill_diagonal(matrix , 0)
+    # Flatten the matrix to get the list of all edge weights, ignoring the diagonal (self-loop) entries
+    flattened = matrix[np.triu_indices_from(matrix, k=1)]
+    
+    # Determine the threshold value that marks the top percentile of edges
+    threshold = np.percentile(np.abs(flattened), 100 - percentile)
+    
+    # Create a new matrix that only includes edges above the threshold
+    result_matrix = np.where(np.abs(matrix) >= threshold, matrix, 0)
+
+    return pd.DataFrame(result_matrix , index = idx , columns=idx)
+
+def gen_threshold_net(adj , percentile = 10, labels= None  ,  node_colours = 'skyblue' , node_size = 300 , plot=True) : 
+    """
+    Converts a thresholded adjacency matrix to a NetworkX graph.
+    
+    Args:
+    matrix (np.ndarray): A 2D NumPy array for the thresholded adjacency matrix.
+    labels (list): Optional. A list of node labels. If None, integer labels will be used.
+    
+    Returns:
+    nx.Graph: The resulting NetworkX graph.
+    """
+    data = threshold_adjacency_matrix(adj , percentile)
+    
+    # Create a NetworkX graph
+    G = nx.Graph()
+    
+    # Add nodes to the graph
+    G.add_nodes_from(data.index)
+
+    if labels is not None : 
+        nx.set_node_attributes(G , labels.astype('category').cat.codes , 'label')
+    nx.set_node_attributes(G , pd.Series(np.arange(len(data.index)) , index=data.index) , 'idx')
+
+    matrix = data.to_numpy()
+    # Add edges only where the matrix has non-zero values
+    for i in range(len(matrix)):
+        for j in range(i + 1, len(matrix)):  # Only upper triangle needed due to symmetry
+            weight = matrix[i][j]
+            if weight != 0:
+                G.add_edge(data.index[i], data.index[j])
+
+    if plot == True : 
+        plt.figure(figsize=(10, 8))
+        nx.draw(G, with_labels=False, font_weight='bold', node_size=node_size, node_color=node_colours, font_size=8)
+        patches = []
+        for col , lab in zip(node_colours.unique() , labels.unique()) : 
+            patches.append(mpatches.Patch(color=col, label=lab))
+        plt.legend(handles=patches)
+        plt.show()
+    
+    return G
+
+def gen_knn_thresh_network(adj , K , percentile , labels ,  node_colours = 'skyblue' , node_size = 300 , plot=True) : 
+    """
+    Plots a k-nearest neighbors network using NetworkX.
+
+    Parameters:
+        data (pd.DataFrame): The similarity or distance matrix used to determine neighbors.
+        K (int): The number of nearest neighbors for network connections.
+        labels (pd.Series): Labels or categories for the nodes used in plotting.
+        node_colours (str or list): Color or list of colors for the nodes.
+        node_size (int): Size of the nodes in the plot.
+
+    Returns:
+        nx.Graph: A NetworkX graph object that has been plotted.
+    """
+
+    data = threshold_adjacency_matrix(adj , percentile) 
+    
+    min_k_neighbours = (data > 0 ).sum()
+    filt_k_neighbours = min_k_neighbours[min_k_neighbours > K].index
+    
+    data = data.loc[filt_k_neighbours , filt_k_neighbours]
+    
+    # Get k-nearest neighbors for each node (k=20 in this example)
+    k_neighbors = get_k_neighbors(data, k=K)
+
+    labels = labels[filt_k_neighbours]
+    if type(node_colours) != str : 
+        node_colours = node_colours[filt_k_neighbours]
+
+    # Create a NetworkX graph
+    G = nx.Graph()
+
+    # Add nodes to the graph
+    G.add_nodes_from(data.index)
+    
+    nx.set_node_attributes(G , labels.astype('category').cat.codes , 'label')
+    nx.set_node_attributes(G , pd.Series(np.arange(len(data.index)) , index=data.index) , 'idx')
+
+    # Add edges based on the k-nearest neighbors
+    for node, neighbors in k_neighbors.items():
+        for neighbor in neighbors:
+            G.add_edge(node, neighbor)
+
+    if plot == True : 
+        plt.figure(figsize=(10, 8))
+        nx.draw(G, with_labels=False, font_weight='bold', node_size=node_size, node_color=node_colours, font_size=8)
+        patches = []
+        for col , lab in zip(node_colours.unique() , labels.unique()) : 
+            patches.append(mpatches.Patch(color=col, label=lab))
+        plt.legend(handles=patches)
+        plt.show()
+    
+    return G
+    
 def check_wall_names(wall):
     """
     Checks whether all matrices in a list share the same row and column names.
