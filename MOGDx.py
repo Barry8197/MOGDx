@@ -77,9 +77,9 @@ def main(args):
         net = ReactomeNetwork(genes_of_interest=np.unique(list(genes['genes'].values)) , n_levels=5)
 
     # Load graph
-    #graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
-    #print(f'Using graph {graph_file}')
-    graph_file = args.input + '/../ThesisExpts/ModSimilarity/' + args.network 
+    graph_file = args.input + '/../Networks/' + '_'.join(sorted(args.modalities)) + '_graph.graphml'
+    print(f'Using graph {graph_file}')
+    #graph_file = args.input + '/../ThesisExpts/ModSimilarity/' + args.network 
     g = nx.read_graphml(graph_file)
     # Encoder Only Implementation - remove all edges no - network structure
     #g.remove_edges_from(list(g.edges()))
@@ -96,7 +96,7 @@ def main(args):
     if args.encoder_dim is None : 
         encoder_dims = [500 for mod in datModalities]
     else : 
-        encoder_dimes = args.encoder_dim
+        encoder_dims = args.encoder_dim
 
     # Setup the node features for the GNN
     h = reduce(merge_dfs , list(datModalities.values()))
@@ -343,7 +343,7 @@ def construct_parser():
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 1.0)')
-    parser.add_argument('--patience', type=float, default=100,
+    parser.add_argument('--patience', type=float, default=200,
                         help='Early Stopping Patience (default: 100 batches of 5 -> equivalent of 100*5 = 500)')
     parser.add_argument('--gamma', type=float, default=0.5, metavar='M',
                         help='Learning rate step gamma (default: 0.5)')
@@ -374,9 +374,9 @@ def construct_parser():
     parser.add_argument('--index-col' , type=str , default='', 
                         help ='Name of column in input data which refers to index.'
                         'Leave blank if none.')
-    parser.add_argument('--n-splits' , default=10 , type=int, help='Number of K-Fold'
+    parser.add_argument('--n-splits' , default=5 , type=int, help='Number of K-Fold'
                         'splits to use')
-    parser.add_argument('--decoder-dim' , default=64 , type=int , help ='Integer specifying dim of common '
+    parser.add_argument('--decoder-dim' , default=32 , type=int , help ='Integer specifying dim of common '
                         'layer to all modalities')
     #parser.add_argument('--layers' , default=[64 , 64], nargs="+" , type=int , help ='List of integrs'
     #                    'specifying GNN layer sizes')
@@ -391,8 +391,8 @@ def construct_parser():
                         help='Train MOGDx in the inductive setting.')
     parser.add_argument('--n-nodes-samples', type=int, default=-1, metavar='N',
                         help='Number of neighbours to sample from (default : -1 (all neighbours)')
-    parser.add_argument('-net', '--network', required=True, help='Name of the network'
-                        'graphml file')
+    #parser.add_argument('-net', '--network', required=True, help='Name of the network'
+    #                    'graphml file')
     parser.add_argument('--interpret-feat', action='store_true' , default=False,
                         help='Flag for interpreting features')
     parser.add_argument('--h-feats', required=True, nargs="+" ,type=int , help ='Integer specifying hidden dim of GNN'
