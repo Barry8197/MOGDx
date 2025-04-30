@@ -37,14 +37,6 @@ def main(args):
     Args:
         args (argparse.Namespace): Command line arguments.
     '''
-    
-    # Map model names to class objects
-    model_mapping = {
-        "GCN": GCN_MME,
-        "GSage": GSage_MME,
-        'GAT': GAT_MME
-    }
-
     # Start the timer
     start_time = time.time()
     
@@ -136,7 +128,12 @@ def main(args):
 
         # Initialize model
         if args.pnet : 
-            model = model_mapping[args.model](MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, PNet=net).to(device)
+            if args.model == 'GCN' : 
+                model = GCN_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, PNet=net).to(device)
+            elif args.model == 'GSage' : 
+                model = GSage_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling, PNet=net).to(device)
+            elif args.modes == 'GAT' :
+                model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling, PNet=net).to(device)
         else :
             model = model_mapping[args.model](MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout).to(device)
         
@@ -380,8 +377,8 @@ def construct_parser():
                         'layer to all modalities')
     #parser.add_argument('--layers' , default=[64 , 64], nargs="+" , type=int , help ='List of integrs'
     #                    'specifying GNN layer sizes')
-    #parser.add_argument('--layer-activation', default=['elu' , 'elu'] , nargs="+" , type=str , help='List of activation'
-    #                    'functions for each GNN layer')
+    parser.add_argument('--Gsage-pooling', default='mean' , type=str , help='Pooling Strategy for SAGEConv layer'
+                       'Can be one of ["mean" , "gcn" , "pool" , "lstm"]')
 
     parser.add_argument('-enc', '--encoder-dim', required=False, default=None, nargs="+", type=int , help='List of integers '
                         'corresponding to the dimension of the fisrt encoder layer for each modality')
