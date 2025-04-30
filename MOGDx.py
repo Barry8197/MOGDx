@@ -133,14 +133,15 @@ def main(args):
             elif args.model == 'GSage' : 
                 model = GSage_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling, PNet=net).to(device)
             elif args.model == 'GAT' :
-                model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling, PNet=net).to(device)
+                model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, n_heads=args.GAT_n_heads, PNet=net).to(device)
         else :
             if args.model == 'GCN' : 
                 model = GCN_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout).to(device)
             elif args.model == 'GSage' : 
                 model = GSage_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling).to(device)
             elif args.model == 'GAT' :
-                model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling).to(device)
+                print(args.GAT_n_heads)
+                model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, n_heads=args.GAT_n_heads).to(device)
         
         print(model)
         print(g)
@@ -384,7 +385,8 @@ def construct_parser():
     #                    'specifying GNN layer sizes')
     parser.add_argument('--Gsage-pooling', default='mean' , type=str , help='Pooling Strategy for SAGEConv layer'
                        'Can be one of ["mean" , "gcn" , "pool" , "lstm"]')
-
+    parser.add_argument('--GAT-n-heads', type=int, default=3, metavar='N',
+                        help='Number of GAT Attention Heads (default: 3)')
     parser.add_argument('-enc', '--encoder-dim', required=False, default=None, nargs="+", type=int , help='List of integers '
                         'corresponding to the dimension of the fisrt encoder layer for each modality')
     parser.add_argument('--pnet', action='store_true' , default=False,
