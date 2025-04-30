@@ -140,7 +140,6 @@ def main(args):
             elif args.model == 'GSage' : 
                 model = GSage_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling).to(device)
             elif args.model == 'GAT' :
-                print(args.GAT_n_heads)
                 model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, n_heads=args.GAT_n_heads).to(device)
         
         print(model)
