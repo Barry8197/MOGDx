@@ -18,7 +18,7 @@ sys.path.insert(0 , os.path.dirname(os.path.abspath(__file__)))
 from preprocess_functions import gen_new_graph
 sys.path = orig_sys_path
 
-def train(g, train_index, device ,  model , labels , epochs , lr , patience, n_node_samples=-1, batch_size=1024, weight_decay=1e-4, step_size=50, gamma=0.5, pretrain = False , pnet=False , inductive = False):
+def train(g, train_index, device ,  model , labels , epochs , lr , patience, n_node_samples=-1, batch_size=1024, weight_decay=1e-4, step_size=50, gamma=0.5, inductive = False, pretrain = False , pnet=False ):
     """
     Trains a model on the given graph data using specified parameters.
 
