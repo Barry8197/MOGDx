@@ -132,14 +132,14 @@ def main(args):
                 model = GCN_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, PNet=net).to(device)
             elif args.model == 'GSage' : 
                 model = GSage_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling, PNet=net).to(device)
-            elif args.modes == 'GAT' :
+            elif args.model == 'GAT' :
                 model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling, PNet=net).to(device)
         else :
             if args.model == 'GCN' : 
                 model = GCN_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout).to(device)
             elif args.model == 'GSage' : 
                 model = GSage_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling).to(device)
-            elif args.modes == 'GAT' :
+            elif args.model == 'GAT' :
                 model = GAT_MME(MME_input_shapes , encoder_dims, args.latent_dim , args.decoder_dim , args.h_feats,  len(meta.unique()), args.dropout, args.encoder_dropout, pooling=args.Gsage_pooling).to(device)
         
         print(model)
