@@ -285,12 +285,13 @@ def main(args):
     day = current_date.day
     
     # Save the best model
-    save_path = args.output + '/Models/'
-    os.makedirs(save_path, exist_ok=True)
-    torch.save({
-        'model_state_dict': best_model.state_dict(),
-        # You can add more information to save, such as training history, hyperparameters, etc.
-    }, f'{save_path}GCN_MME_model_{month}{day}' )
+    if args.save_model : 
+        save_path = args.output + '/Models/'
+        os.makedirs(save_path, exist_ok=True)
+        torch.save({
+            'model_state_dict': best_model.state_dict(),
+            # You can add more information to save, such as training history, hyperparameters, etc.
+        }, f'{save_path}GCN_MME_model_{month}{day}' )
     
     # Generate the confusion matrix and precision-recall plot if selected
     if args.no_output_plots : 
@@ -398,6 +399,8 @@ def construct_parser():
     #                    'graphml file')
     parser.add_argument('--interpret-feat', action='store_true' , default=False,
                         help='Flag for interpreting features')
+    parser.add_argument('--save-model', action='store_true' , default=False,
+                        help='Flag for saving the model')
     parser.add_argument('--h-feats', required=True, nargs="+" ,type=int , help ='Integer specifying hidden dim of GNN'
                     'specifying GNN layer size')
     parser.add_argument('-i', '--input', required=True, help='Path to the '
